@@ -201,21 +201,100 @@ async function loadWatchlist() {
   const data = await api("/api/watchlist");
   state.watchlist = data.items;
   list.innerHTML = "";
+  if (!data.items.length) {
+    list.innerHTML = '<div class="empty">관심종목이 없습니다.<br>위 검색창에서 추가해보세요.</div>';
+    return;
+  }
   data.items.forEach((s) => {
     const div = document.createElement("div");
     div.className = "watch-card";
     div.innerHTML = `
       <div class="info">
         <div class="name">${s.name}</div>
-        <div class="sector">${s.sector} · ${s.code}</div>
+        <div class="sector">${s.sector ? s.sector + " · " : ""}${s.code}.${s.market}</div>
       </div>
       <div class="price">
         <div class="now">${fmtWon(s.current_price)}</div>
         <div class="chg ${pnlClass(s.change_pct)}">${fmtPct(s.change_pct)}</div>
       </div>
+      <button class="wl-del" data-code="${s.code}" data-name="${s.name}" title="삭제">✕</button>
     `;
+    div.querySelector(".wl-del").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const { code, name } = e.currentTarget.dataset;
+      if (!confirm(`${name} 을(를) 관심종목에서 제거할까요?`)) return;
+      await api(`/api/watchlist/${code}`, { method: "DELETE" });
+      toast("삭제됨");
+      loadWatchlist();
+    });
     list.appendChild(div);
   });
+}
+
+// 관심종목 검색 (디바운스)
+let _wlSearchTimer = null;
+$("wl-search").addEventListener("input", (e) => {
+  const q = e.target.value.trim();
+  clearTimeout(_wlSearchTimer);
+  if (!q) {
+    $("wl-search-results").classList.add("hidden");
+    return;
+  }
+  _wlSearchTimer = setTimeout(() => runWatchSearch(q), 350);
+});
+
+// 바깥 클릭 시 결과창 닫기
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".search-wrap")) {
+    $("wl-search-results").classList.add("hidden");
+  }
+});
+
+async function runWatchSearch(q) {
+  const box = $("wl-search-results");
+  box.classList.remove("hidden");
+  box.innerHTML = '<div class="search-hint">검색 중...</div>';
+  try {
+    const data = await api(`/api/watchlist/search?q=${encodeURIComponent(q)}`);
+    if (!data.items.length) {
+      box.innerHTML = '<div class="search-empty">결과 없음. KR 종목명/코드로 검색해보세요.</div>';
+      return;
+    }
+    box.innerHTML = "";
+    data.items.forEach((hit) => {
+      const row = document.createElement("div");
+      row.className = "search-hit";
+      row.innerHTML = `
+        <div>
+          <div class="hit-name">${hit.name}</div>
+          <div class="hit-sub">${hit.code}.${hit.market}${hit.long_name && hit.long_name !== hit.name ? " · " + hit.long_name : ""}</div>
+        </div>
+        <span class="hit-add">＋ 추가</span>
+      `;
+      row.addEventListener("click", async () => {
+        try {
+          await api("/api/watchlist", {
+            method: "POST",
+            body: JSON.stringify({
+              code: hit.code,
+              market: hit.market,
+              name: hit.name,
+              sector: "",
+            }),
+          });
+          toast(`${hit.name} 추가됨`);
+          $("wl-search").value = "";
+          box.classList.add("hidden");
+          loadWatchlist();
+        } catch (e) {
+          // api()가 이미 토스트 표시
+        }
+      });
+      box.appendChild(row);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="search-empty">검색 오류</div>';
+  }
 }
 
 // ── 상단 새로고침 ───────────────────────────

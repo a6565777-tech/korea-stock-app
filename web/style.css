@@ -248,6 +248,65 @@ main { padding: 12px; }
 #run-predict-btn { width: 100%; }
 
 /* 관심종목 탭 */
+.search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+#wl-search {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+}
+#wl-search:focus { outline: none; border-color: var(--accent); }
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.search-results.hidden { display: none; }
+.search-hit {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.search-hit:last-child { border-bottom: none; }
+.search-hit:active { background: var(--bg-card); }
+.search-hit .hit-name { font-weight: 500; color: var(--text); }
+.search-hit .hit-sub  { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.search-hit .hit-add  {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: white;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.search-hint, .search-empty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 .watch-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -257,12 +316,26 @@ main { padding: 12px; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
 }
 .watch-card .info .name { font-weight: 600; }
 .watch-card .info .sector { font-size: 11px; color: var(--text-dim); }
-.watch-card .price { text-align: right; }
+.watch-card .price { text-align: right; padding-right: 28px; }
 .watch-card .price .now { font-weight: 600; font-size: 15px; }
 .watch-card .price .chg { font-size: 12px; }
+.watch-card .wl-del {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.watch-card .wl-del:active { color: var(--red); }
 
 /* 모달 */
 .modal {

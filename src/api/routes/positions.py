@@ -10,10 +10,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from src.config import load as load_config
 from src.collectors.price import get_snapshot
 from src.positions import load as load_positions, Position
-from src.storage import positions_store
+from src.storage import positions_store, watchlist_store
 
 router = APIRouter()
 
@@ -83,13 +82,13 @@ def _enrich(p: Position, watchlist: list[dict]) -> dict:
 
 @router.get("")
 def list_positions():
-    cfg = load_config()
+    watchlist = watchlist_store.list_watchlist()
     positions = load_positions()
     total_cost = 0.0
     total_value = 0.0
     items = []
     for p in positions:
-        enriched = _enrich(p, cfg["watchlist"])
+        enriched = _enrich(p, watchlist)
         items.append(enriched)
         total_cost += p.cost
         if enriched.get("current_value"):
@@ -110,10 +109,10 @@ def list_positions():
 
 @router.post("")
 def add_position(payload: PositionIn):
-    cfg = load_config()
+    watchlist = watchlist_store.list_watchlist()
     raw = payload.model_dump(exclude_none=True)
     raw["code"] = str(raw["code"]).zfill(6)
-    raw["name"] = _resolve_name(raw["code"], cfg["watchlist"], raw.get("name", ""))
+    raw["name"] = _resolve_name(raw["code"], watchlist, raw.get("name", ""))
     positions_store.add_position(raw)
     return {"ok": True, "position": raw}
 
