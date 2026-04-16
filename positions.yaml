@@ -1,0 +1,14 @@
+positions:
+- code: 005930
+  name: 삼성전자
+  buy_price: 195000
+  quantity: 10
+  buy_date: '2026-04-08'
+  note: HBM 모멘텀 기대
+- code: 005380
+  name: 현대차
+  buy_price: 180000
+  quantity: 5
+  buy_date: '2026-04-10'
+  note: 미국 IRA 완화 기대
+  target_price: 220000

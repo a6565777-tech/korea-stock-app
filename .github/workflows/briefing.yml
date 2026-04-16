@@ -1,0 +1,66 @@
+name: Scheduled Briefings
+
+# 한국시간(KST) = UTC + 9
+#   overnight 00:00 KST = 15:00 UTC 전날
+#   morning   08:00 KST = 23:00 UTC 전날
+#   midday    12:00 KST = 03:00 UTC 당일
+#   afternoon 14:00 KST = 05:00 UTC 당일
+#   closing   15:40 KST = 06:40 UTC 당일
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "브리핑 슬롯"
+        required: true
+        default: "morning"
+        type: choice
+        options: [overnight, morning, midday, afternoon, closing]
+  schedule:
+    - cron: "0 15 * * 0-4"     # overnight 00:00 KST (일~목 실행, 금요일 새벽 스킵)
+    - cron: "0 23 * * 0-4"     # morning 08:00 KST (월~금)
+    - cron: "0 3 * * 1-5"      # midday 12:00 KST
+    - cron: "0 5 * * 1-5"      # afternoon 14:00 KST
+    - cron: "40 6 * * 1-5"     # closing 15:40 KST
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+      TZ: "Asia/Seoul"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - run: pip install -r requirements.txt
+
+      - name: Determine slot
+        id: slot
+        run: |
+          if [ -n "${{ inputs.slot }}" ]; then
+            echo "slot=${{ inputs.slot }}" >> $GITHUB_OUTPUT
+          else
+            # 크론으로 트리거된 경우 현재 UTC 시간 기준으로 슬롯 결정
+            H=$(date -u +%H)
+            M=$(date -u +%M)
+            case "$H:$M" in
+              15:*) echo "slot=overnight" >> $GITHUB_OUTPUT ;;
+              23:*) echo "slot=morning"   >> $GITHUB_OUTPUT ;;
+              03:*) echo "slot=midday"    >> $GITHUB_OUTPUT ;;
+              05:*) echo "slot=afternoon" >> $GITHUB_OUTPUT ;;
+              06:*) echo "slot=closing"   >> $GITHUB_OUTPUT ;;
+              *)    echo "slot=morning"   >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Run briefing (${{ steps.slot.outputs.slot }})
+        run: python -m src.analyzers.briefing ${{ steps.slot.outputs.slot }} --force

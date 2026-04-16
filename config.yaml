@@ -1,0 +1,95 @@
+# 관심 종목 (종목코드 6자리, 시장: KS=KOSPI, KQ=KOSDAQ)
+watchlist:
+  - code: "005930"
+    market: "KS"
+    name: "삼성전자"
+    sector: "반도체"
+    drivers:
+      - HBM 경쟁 (마이크론, SK하이닉스)
+      - 엔비디아 실적 및 주문량
+      - 미·중 반도체 규제
+      - 원·달러 환율
+      - 스마트폰 수요
+    news_keywords: ["삼성전자", "Samsung Electronics", "HBM", "파운드리"]
+
+  - code: "000660"
+    market: "KS"
+    name: "SK하이닉스"
+    sector: "반도체"
+    drivers:
+      - HBM 가격 및 공급
+      - 엔비디아 주문
+      - AI 투자 사이클
+      - DRAM 현물가
+      - 미·중 갈등
+    news_keywords: ["SK하이닉스", "SK Hynix", "HBM", "DRAM"]
+
+  - code: "005380"
+    market: "KS"
+    name: "현대차"
+    sector: "자동차"
+    drivers:
+      - 미국 IRA 및 관세
+      - 원·달러 환율
+      - 미국 자동차 수요
+      - 리튬·니켈 원자재 가격
+      - EV 보조금 정책
+    news_keywords: ["현대차", "현대자동차", "Hyundai Motor", "IRA 관세"]
+
+  - code: "278470"
+    market: "KS"
+    name: "에이피알"
+    sector: "화장품/뷰티디바이스"
+    drivers:
+      - 중국 소비심리
+      - 면세점 매출
+      - K-뷰티 수출
+      - 뷰티디바이스 신제품 출시
+    news_keywords: ["에이피알", "APR", "메디큐브", "부스터프로"]
+
+  - code: "090710"
+    market: "KQ"
+    name: "휴림로봇"
+    sector: "로봇"
+    drivers:
+      - 로봇 정책 테마
+      - 삼성/LG 로봇 투자 발표
+      - 개별 수급 (변동성 큼)
+    news_keywords: ["휴림로봇", "로봇주", "협동로봇"]
+
+# 거시 지표 (글로벌 시그널)
+macro:
+  - ticker: "NVDA"
+    name: "엔비디아"
+    relevance: "삼성전자, SK하이닉스"
+  - ticker: "CL=F"
+    name: "WTI 원유"
+    relevance: "정유, 항공, 자동차"
+  - ticker: "KRW=X"
+    name: "원·달러 환율"
+    relevance: "수출주, 반도체, 자동차"
+  - ticker: "^GSPC"
+    name: "S&P 500"
+    relevance: "전반적 시장 심리"
+  - ticker: "^IXIC"
+    name: "나스닥"
+    relevance: "기술주, 반도체"
+
+# 알림 시간 (24시간제, 한국시간)
+schedule:
+  morning_brief: "08:00"
+  noon_update: "12:30"
+  closing_brief: "15:40"
+
+# 실시간 경보 기준
+alerts:
+  price_change_pct_mid: 3.0      # 🟡 참고
+  price_change_pct_high: 5.0     # 🔴 긴급
+  volume_spike_multiple: 5.0     # 거래량 X배 이상
+  cooldown_minutes: 60           # 같은 종목 같은 사유 중복 억제
+
+# LLM 설정
+llm:
+  provider: "gemini"             # gemini | claude
+  model: "gemini-2.5-flash"
+  temperature: 0.3

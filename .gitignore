@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+data/*.sqlite
+data/briefings/
+data/_test_*.json
+data/last_alerts.json
+logs/*.log
+.venv/
+venv/
+.vercel/
+node_modules/

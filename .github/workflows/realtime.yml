@@ -1,0 +1,28 @@
+name: Realtime Monitor (polling)
+
+# 장중 10분 간격 폴링 (KST 09:00~15:30 = UTC 00:00~06:30)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 0-6 * * 1-5"    # 월~금, 매 10분
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+      TZ: "Asia/Seoul"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Single tick
+        run: python -m src.analyzers.realtime --once
