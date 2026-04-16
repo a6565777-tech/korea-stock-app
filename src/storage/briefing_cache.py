@@ -64,7 +64,7 @@ def get(slot: str) -> dict | None:
 
 
 def get_all() -> dict[str, dict]:
-    slots = ["overnight", "morning", "midday", "afternoon", "closing"]
+    slots = ["overnight", "morning", "realtime", "midday", "afternoon", "closing"]
     out = {}
     for slot in slots:
         rec = get(slot)
