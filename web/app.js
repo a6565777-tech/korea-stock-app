@@ -213,9 +213,29 @@ document.querySelectorAll(".slot-btn").forEach((btn) => {
   });
 });
 
+function _ageMinutes(isoTs) {
+  if (!isoTs) return null;
+  const t = new Date(isoTs).getTime();
+  if (isNaN(t)) return null;
+  return Math.round((Date.now() - t) / 60000);
+}
+
+function _ageLabel(mins) {
+  if (mins == null) return "";
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}시간 전`;
+  return `${Math.floor(hrs / 24)}일 전`;
+}
+
 function renderBriefingData(data, slot, fromCache = false) {
   const meta = $("briefing-meta");
   const text = $("briefing-text");
+  const banner = $("briefing-banner");
+  banner.classList.add("hidden");
+  banner.textContent = "";
+
   if (!data || !data.text) {
     text.textContent = slot === "realtime"
       ? "아직 생성된 실시간 브리핑이 없습니다.\n아래 버튼으로 지금 생성하세요.\n(예약 브리핑: 00:00/08:00/12:00/14:00/15:40)"
@@ -223,8 +243,18 @@ function renderBriefingData(data, slot, fromCache = false) {
     meta.textContent = "";
   } else {
     text.textContent = data.text;
-    const ts = data.ts ? new Date(data.ts).toLocaleString("ko-KR") : "";
-    meta.textContent = `${data.slot || slot} · 생성 ${ts}${fromCache ? " (캐시)" : ""}`;
+    const ageMin = _ageMinutes(data.ts);
+    const ageStr = _ageLabel(ageMin);
+    const tsAbs = data.ts ? new Date(data.ts).toLocaleString("ko-KR") : "";
+    meta.textContent = `${data.slot || slot} · ${ageStr ? ageStr + " · " : ""}${tsAbs}${fromCache ? " (캐시)" : ""}`;
+
+    // 실시간 탭은 오래된 값이면 경고 배너
+    if (slot === "realtime" && ageMin != null && ageMin >= 30) {
+      banner.classList.remove("hidden");
+      banner.innerHTML =
+        `⚠️ 실시간 브리핑이 <b>${ageStr}</b> 생성된 내용입니다. ` +
+        `시세·뉴스가 바뀌었을 수 있어요. 아래 <b>🤖 지금 새 브리핑 생성</b>으로 최신화하세요.`;
+    }
   }
 }
 
