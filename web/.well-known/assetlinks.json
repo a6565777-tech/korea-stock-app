@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.koreastockapp.app",
+        "sha256_cert_fingerprints": ["7C:4E:79:61:01:E6:F6:DC:8C:2D:46:14:2E:B8:D9:77:CF:DC:03:99:04:F8:4F:27:6B:6A:BB:0E:B8:42:BD:A7"]
+      }
+    }]

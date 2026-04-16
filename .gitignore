@@ -10,3 +10,10 @@ logs/*.log
 venv/
 .vercel/
 node_modules/
+
+# APK 패키지 (키스토어·서명된 바이너리 — 공개 저장소 금지)
+apk_package/
+pwabuilder.zip
+*.apk
+*.aab
+*.keystore
