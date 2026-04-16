@@ -1,6 +1,7 @@
 @echo off
-REM 브리핑 런처. 첫 인자로 슬롯 받음: morning/midday/afternoon/closing
-REM 기본값: morning
+chcp 65001 >nul
+REM Briefing launcher. First arg = slot: overnight/morning/midday/afternoon/closing
+REM Default: morning
 
 cd /d "%~dp0"
 set PYTHONUTF8=1
