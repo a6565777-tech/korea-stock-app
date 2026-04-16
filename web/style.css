@@ -235,15 +235,29 @@ main { padding: 12px; }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px;
-  font-size: 13px;
-  line-height: 1.6;
+  padding: 18px 16px;
+  font-size: 14px;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", system-ui, "Segoe UI", "맑은 고딕", monospace;
   min-height: 200px;
   margin: 0 0 12px 0;
 }
+
+/* 브리핑 상단 경고 배너 (실시간 캐시 오래됐을 때 등) */
+.briefing-banner {
+  background: rgba(255,169,71,0.12);
+  border: 1px solid rgba(255,169,71,0.45);
+  color: var(--orange);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.briefing-banner.hidden { display: none; }
 
 #run-predict-btn { width: 100%; }
 
