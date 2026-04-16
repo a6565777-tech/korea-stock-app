@@ -17,15 +17,16 @@ from src.storage import briefing_cache
 
 
 _LOG_DIR = Path(__file__).parent.parent.parent / "logs"
-_LOG_DIR.mkdir(exist_ok=True)
 
 
 def _log(msg: str) -> None:
     ts = datetime.now().strftime("%H:%M:%S")
     line = f"[{ts}] {msg}"
     print(line)
-    logfile = _LOG_DIR / f"briefing_{datetime.now().strftime('%Y-%m-%d')}.log"
+    # 읽기전용 FS(Vercel 등)에서는 파일 로그 스킵
     try:
+        _LOG_DIR.mkdir(exist_ok=True)
+        logfile = _LOG_DIR / f"briefing_{datetime.now().strftime('%Y-%m-%d')}.log"
         with logfile.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
     except Exception:

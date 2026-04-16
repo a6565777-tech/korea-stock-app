@@ -11,8 +11,15 @@ from pathlib import Path
 from typing import Any
 
 _LOCAL_DIR = Path(__file__).parent.parent.parent / "data" / "briefings"
-_LOCAL_DIR.mkdir(parents=True, exist_ok=True)
 _REDIS_KEY = "briefing:v1"   # { slot: {ts, text} } 해시
+
+
+def _ensure_local_dir() -> None:
+    """로컬 모드에서만 필요. 읽기전용 FS면 조용히 실패."""
+    try:
+        _LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 
 def _redis_enabled() -> bool:
@@ -38,6 +45,7 @@ def save(slot: str, text: str) -> None:
     if _redis_enabled():
         _redis_call(["HSET", _REDIS_KEY, slot, json.dumps(record, ensure_ascii=False)])
     else:
+        _ensure_local_dir()
         (_LOCAL_DIR / f"{slot}.json").write_text(
             json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
         )
