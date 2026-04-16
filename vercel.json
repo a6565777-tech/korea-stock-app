@@ -5,7 +5,8 @@
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": "{src/**,config.yaml,positions.yaml}"
+        "includeFiles": "{src/**,config.yaml,positions.yaml}",
+        "maxDuration": 60
       }
     },
     { "src": "web/**", "use": "@vercel/static" }
