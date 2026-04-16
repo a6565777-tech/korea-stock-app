@@ -10,7 +10,7 @@ from src.storage import briefing_cache
 
 router = APIRouter()
 
-_VALID_SLOTS = {"overnight", "morning", "midday", "afternoon", "closing"}
+_VALID_SLOTS = {"overnight", "morning", "realtime", "midday", "afternoon", "closing"}
 
 
 @router.get("")
