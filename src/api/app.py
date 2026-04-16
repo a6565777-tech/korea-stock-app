@@ -12,6 +12,7 @@ from src.api.routes import positions as positions_routes
 from src.api.routes import predict as predict_routes
 from src.api.routes import briefing as briefing_routes
 from src.api.routes import watchlist as watchlist_routes
+from src.api.routes import debug as debug_routes
 
 app = FastAPI(title="Korea Stock Alert API", version="0.1.0")
 
@@ -27,6 +28,7 @@ app.include_router(positions_routes.router, prefix="/api/positions", tags=["posi
 app.include_router(predict_routes.router, prefix="/api/predict", tags=["predict"])
 app.include_router(briefing_routes.router, prefix="/api/briefing", tags=["briefing"])
 app.include_router(watchlist_routes.router, prefix="/api/watchlist", tags=["watchlist"])
+app.include_router(debug_routes.router, prefix="/api/debug", tags=["debug"])
 
 
 @app.get("/api/health")

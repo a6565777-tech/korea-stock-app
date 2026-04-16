@@ -10,8 +10,14 @@ from typing import Any
 
 import requests
 
-_SEARCH_URL = "https://query2.finance.yahoo.com/v1/finance/search"
-_UA = "Mozilla/5.0 (compatible; KoreaStockApp/0.1)"
+_SEARCH_URLS = [
+    "https://query1.finance.yahoo.com/v1/finance/search",
+    "https://query2.finance.yahoo.com/v1/finance/search",
+]
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+)
 
 
 def _parse_symbol(symbol: str) -> tuple[str, str] | None:
@@ -34,20 +40,25 @@ def search(query: str, limit: int = 10) -> list[dict]:
         "q": query.strip(),
         "quotesCount": 20,
         "newsCount": 0,
-        "lang": "ko-KR",
-        "region": "KR",
     }
-    try:
-        r = requests.get(
-            _SEARCH_URL,
-            params=params,
-            headers={"User-Agent": _UA, "Accept": "application/json"},
-            timeout=8,
-        )
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        raise RuntimeError(f"Yahoo 검색 실패: {e}") from e
+    headers = {
+        "User-Agent": _UA,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    last_err: Exception | None = None
+    data = None
+    for url in _SEARCH_URLS:
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=8)
+            r.raise_for_status()
+            data = r.json()
+            break
+        except Exception as e:
+            last_err = e
+            continue
+    if data is None:
+        raise RuntimeError(f"Yahoo 검색 실패: {last_err}")
 
     out: list[dict] = []
     for q in data.get("quotes", []):
