@@ -5,7 +5,7 @@ const API = window.location.origin;
 // ── 상태 ───────────────────────────────────
 let state = {
   tab: "positions",
-  slot: "latest",
+  slot: "realtime",
   watchlist: [],
 };
 
@@ -175,11 +175,11 @@ async function loadBriefing(slot) {
   const text = $("briefing-text");
   meta.textContent = "";
   text.textContent = "로딩중...";
-  const path = slot === "latest" ? "/api/briefing/latest" : `/api/briefing/${slot}`;
+  const path = `/api/briefing/${slot}`;
   const data = await api(path);
   if (!data.text) {
-    text.textContent = slot === "latest"
-      ? "아직 생성된 브리핑이 없습니다.\n아래 버튼으로 수동 생성하거나, 예약 시각(00:00/08:00/12:00/14:00/15:40)을 기다려주세요."
+    text.textContent = slot === "realtime"
+      ? "아직 생성된 실시간 브리핑이 없습니다.\n아래 버튼으로 지금 생성하세요.\n(예약 브리핑: 00:00/08:00/12:00/14:00/15:40)"
       : `아직 '${slot}' 브리핑이 없습니다.`;
     meta.textContent = "";
   } else {
@@ -199,7 +199,7 @@ $("run-predict-btn").addEventListener("click", async () => {
   text.textContent = "⏳ Gemini 호출 중...\n(무료 티어는 최대 60초 소요)";
   meta.textContent = "";
   try {
-    const slot = state.slot === "latest" ? "midday" : state.slot;
+    const slot = state.slot;
     const res = await api(`/api/predict/run?slot=${slot}`, { method: "POST" });
     if (res && res.ok) {
       toast("✅ 새 브리핑 생성 완료");
