@@ -15,6 +15,29 @@ const fmtWon = (n) => (n == null || isNaN(n) ? "-" : "₩" + Math.round(n).toLoc
 const fmtPct = (n) => (n == null || isNaN(n) ? "-" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%");
 const pnlClass = (n) => (n == null ? "pnl-neutral" : (n > 0 ? "pnl-positive" : (n < 0 ? "pnl-negative" : "pnl-neutral")));
 
+// ── localStorage 캐시 (앱 재실행 시 즉시 표시용) ──
+const CACHE_PREFIX = "stockapp_v1_";
+function cacheGet(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function cacheSet(key, data) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, savedAt: Date.now() }));
+  } catch {}
+}
+function cacheAge(cached) {
+  if (!cached || !cached.savedAt) return null;
+  const mins = Math.round((Date.now() - cached.savedAt) / 60000);
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}시간 전`;
+  return `${Math.round(hrs / 24)}일 전`;
+}
+
 function toast(msg, ms = 2200) {
   const t = $("toast");
   t.textContent = msg;
@@ -67,17 +90,37 @@ document.querySelectorAll(".tab").forEach((btn) => {
 });
 
 // ── 포지션 ─────────────────────────────────
-async function loadPositions() {
+function renderPositionsData(data, fromCache = false) {
   const list = $("positions-list");
-  list.innerHTML = '<div class="loading">로딩중...</div>';
-  const data = await api("/api/positions");
-  renderSummary(data.summary);
+  renderSummary(data.summary || { count: 0, total_cost: 0, total_value: 0, total_pnl: 0, total_pct: 0 });
   list.innerHTML = "";
-  if (!data.items.length) {
+  if (!data.items || !data.items.length) {
     list.innerHTML = '<div class="empty">아직 등록된 포지션이 없습니다.<br>아래 <b>+ 종목 추가</b>로 시작하세요.</div>';
     return;
   }
   data.items.forEach((p) => list.appendChild(renderPosition(p)));
+}
+
+async function loadPositions() {
+  const list = $("positions-list");
+  // 1. 캐시 즉시 표시 (있으면)
+  const cached = cacheGet("positions");
+  if (cached && cached.data) {
+    renderPositionsData(cached.data, true);
+  } else {
+    list.innerHTML = '<div class="loading">로딩중...</div>';
+  }
+  // 2. 백그라운드로 신선한 데이터 받아서 갱신
+  try {
+    const data = await api("/api/positions");
+    cacheSet("positions", data);
+    renderPositionsData(data, false);
+  } catch (e) {
+    // 네트워크 실패 시: 캐시라도 남아있으면 그대로 두고, 없으면 에러 표시
+    if (!cached) {
+      list.innerHTML = '<div class="empty">서버 연결 실패. 잠시 후 새로고침(↻).</div>';
+    }
+  }
 }
 
 function renderSummary(s) {
@@ -170,14 +213,10 @@ document.querySelectorAll(".slot-btn").forEach((btn) => {
   });
 });
 
-async function loadBriefing(slot) {
+function renderBriefingData(data, slot, fromCache = false) {
   const meta = $("briefing-meta");
   const text = $("briefing-text");
-  meta.textContent = "";
-  text.textContent = "로딩중...";
-  const path = `/api/briefing/${slot}`;
-  const data = await api(path);
-  if (!data.text) {
+  if (!data || !data.text) {
     text.textContent = slot === "realtime"
       ? "아직 생성된 실시간 브리핑이 없습니다.\n아래 버튼으로 지금 생성하세요.\n(예약 브리핑: 00:00/08:00/12:00/14:00/15:40)"
       : `아직 '${slot}' 브리핑이 없습니다.`;
@@ -185,7 +224,32 @@ async function loadBriefing(slot) {
   } else {
     text.textContent = data.text;
     const ts = data.ts ? new Date(data.ts).toLocaleString("ko-KR") : "";
-    meta.textContent = `${data.slot || slot} · 생성 ${ts}`;
+    meta.textContent = `${data.slot || slot} · 생성 ${ts}${fromCache ? " (캐시)" : ""}`;
+  }
+}
+
+async function loadBriefing(slot) {
+  const text = $("briefing-text");
+  const meta = $("briefing-meta");
+  const cacheKey = `briefing_${slot}`;
+  // 1. 캐시 즉시 표시
+  const cached = cacheGet(cacheKey);
+  if (cached && cached.data) {
+    renderBriefingData(cached.data, slot, true);
+  } else {
+    text.textContent = "로딩중...";
+    meta.textContent = "";
+  }
+  // 2. 백그라운드로 최신 데이터
+  try {
+    const data = await api(`/api/briefing/${slot}`);
+    cacheSet(cacheKey, data);
+    renderBriefingData(data, slot, false);
+  } catch (e) {
+    if (!cached) {
+      text.textContent = "서버 연결 실패. 잠시 후 새로고침(↻).";
+    }
+    // 캐시 있으면 그대로 두기 (사용자가 기존 브리핑 계속 볼 수 있게)
   }
 }
 
@@ -203,7 +267,10 @@ $("run-predict-btn").addEventListener("click", async () => {
     const res = await api(`/api/predict/run?slot=${slot}`, { method: "POST" });
     if (res && res.ok) {
       toast("✅ 새 브리핑 생성 완료");
-      loadBriefing(state.slot);
+      // 생성 직후 즉시 캐시 갱신 + 화면 갱신
+      const fresh = { slot, text: res.text, ts: new Date().toISOString() };
+      cacheSet(`briefing_${slot}`, fresh);
+      renderBriefingData(fresh, slot, false);
     }
   } catch (e) {
     // 에러를 브리핑 영역에 크게 표시 (폰에서 toast만 뜨면 놓치기 쉬움)
@@ -225,17 +292,15 @@ $("run-predict-btn").addEventListener("click", async () => {
 });
 
 // ── 관심종목 ───────────────────────────────
-async function loadWatchlist() {
+function renderWatchlistData(data) {
   const list = $("watchlist-list");
-  list.innerHTML = '<div class="loading">로딩중...</div>';
-  const data = await api("/api/watchlist");
-  state.watchlist = data.items;
+  state.watchlist = data.items || [];
   list.innerHTML = "";
-  if (!data.items.length) {
+  if (!state.watchlist.length) {
     list.innerHTML = '<div class="empty">관심종목이 없습니다.<br>위 검색창에서 추가해보세요.</div>';
     return;
   }
-  data.items.forEach((s) => {
+  state.watchlist.forEach((s) => {
     const div = document.createElement("div");
     div.className = "watch-card";
     div.innerHTML = `
@@ -259,6 +324,25 @@ async function loadWatchlist() {
     });
     list.appendChild(div);
   });
+}
+
+async function loadWatchlist() {
+  const list = $("watchlist-list");
+  const cached = cacheGet("watchlist");
+  if (cached && cached.data) {
+    renderWatchlistData(cached.data);
+  } else {
+    list.innerHTML = '<div class="loading">로딩중...</div>';
+  }
+  try {
+    const data = await api("/api/watchlist");
+    cacheSet("watchlist", data);
+    renderWatchlistData(data);
+  } catch (e) {
+    if (!cached) {
+      list.innerHTML = '<div class="empty">서버 연결 실패. 잠시 후 새로고침(↻).</div>';
+    }
+  }
 }
 
 // 관심종목 검색 (디바운스)
@@ -344,3 +428,10 @@ if ("serviceWorker" in navigator) {
 
 // ── 초기 로드 ──────────────────────────────
 loadPositions();
+// 사용자가 예측 탭 안 열어도 미리 캐시에 받아두기 (다음에 열 때 즉시 표시)
+(async () => {
+  try {
+    const data = await api(`/api/briefing/realtime`);
+    cacheSet(`briefing_realtime`, data);
+  } catch {}
+})();
