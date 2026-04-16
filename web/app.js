@@ -30,13 +30,23 @@ async function api(path, opts) {
       ...opts,
     });
     if (!r.ok) {
-      const text = await r.text();
-      throw new Error(`${r.status}: ${text}`);
+      // 서버가 JSON으로 에러를 주면 구조화된 정보 그대로 throw
+      let body = null;
+      try { body = await r.json(); } catch { body = await r.text(); }
+      const err = new Error(
+        typeof body === "object" && body.user_message
+          ? body.user_message
+          : `HTTP ${r.status}`
+      );
+      err.status = r.status;
+      err.body = body;
+      throw err;
     }
     return await r.json();
   } catch (e) {
     console.error(e);
-    toast("오류: " + e.message);
+    // toast는 짧은 요약만, 상세는 호출자가 처리
+    toast((e.status ? `[${e.status}] ` : "") + (e.message || "오류").slice(0, 80), 3500);
     throw e;
   }
 }
@@ -181,16 +191,36 @@ async function loadBriefing(slot) {
 
 $("run-predict-btn").addEventListener("click", async () => {
   if (!confirm("Gemini API를 호출해서 새 브리핑을 생성합니다. 계속?")) return;
-  $("run-predict-btn").disabled = true;
-  $("run-predict-btn").textContent = "생성 중... (20~40초)";
+  const btn = $("run-predict-btn");
+  const text = $("briefing-text");
+  const meta = $("briefing-meta");
+  btn.disabled = true;
+  btn.textContent = "생성 중... (20~40초)";
+  text.textContent = "⏳ Gemini 호출 중...\n(무료 티어는 최대 60초 소요)";
+  meta.textContent = "";
   try {
     const slot = state.slot === "latest" ? "midday" : state.slot;
-    await api(`/api/predict/run?slot=${slot}`, { method: "POST" });
-    toast("새 브리핑 생성 완료");
-    loadBriefing(state.slot);
+    const res = await api(`/api/predict/run?slot=${slot}`, { method: "POST" });
+    if (res && res.ok) {
+      toast("✅ 새 브리핑 생성 완료");
+      loadBriefing(state.slot);
+    }
+  } catch (e) {
+    // 에러를 브리핑 영역에 크게 표시 (폰에서 toast만 뜨면 놓치기 쉬움)
+    const body = e.body || {};
+    if (e.status === 429 || body.reason === "quota_exhausted") {
+      text.textContent = body.user_message ||
+        "⚠️ Gemini 무료 쿼터 소진. 1~2시간 후 재시도하거나 결제 연결 필요.";
+      meta.textContent = "quota_exhausted · " + new Date().toLocaleString("ko-KR");
+    } else {
+      text.textContent = "❌ 생성 실패\n\n" +
+        (body.user_message || e.message || "알 수 없는 오류") +
+        (body.type ? `\n\n[${body.type}]` : "");
+      meta.textContent = "error · " + new Date().toLocaleString("ko-KR");
+    }
   } finally {
-    $("run-predict-btn").disabled = false;
-    $("run-predict-btn").textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
+    btn.disabled = false;
+    btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
   }
 });
 
