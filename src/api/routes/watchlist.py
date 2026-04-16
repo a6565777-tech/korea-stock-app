@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.collectors.price import get_snapshot
-from src.collectors.yahoo_search import search as yahoo_search
+from src.collectors.naver_search import search as stock_search
 from src.storage import watchlist_store
 
 router = APIRouter()
@@ -44,9 +44,9 @@ def list_watchlist():
 
 @router.get("/search")
 def search_symbols(q: str = Query(..., min_length=1, description="검색어")):
-    """Yahoo Finance에서 한국 KOSPI/KOSDAQ 종목 검색."""
+    """네이버 금융에서 한국 KOSPI/KOSDAQ 종목 검색 (한글·영문·코드 OK)."""
     try:
-        hits = yahoo_search(q)
+        hits = stock_search(q)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"검색 실패: {e}")
     return {"query": q, "items": hits}
