@@ -81,14 +81,18 @@
 
 ## 🔑 환경변수 (.env)
 
+> ⚠️ 실제 값은 `.env` (gitignored) 및 GitHub Secrets에만 저장. 공개 문서에 절대 포함 금지.
+
 ```
-GEMINI_API_KEY=AIzaSyDEuRF46LztW6PTX2Jx2Hm1E2GHg3ffdo8   # 발급 완료
-KIS_APP_KEY=           # 미발급 (한국투자증권 OpenAPI)
-KIS_APP_SECRET=        # 미발급
-KIS_ACCOUNT_NO=        # 미발급
-NAVER_CLIENT_ID=       # 미발급 (현재는 Google News RSS 사용 중)
-NAVER_CLIENT_SECRET=   # 미발급
-NTFY_TOPIC=phoary-stock-alert-xY9kQ2
+GEMINI_API_KEY=<YOUR_KEY>                      # Google AI Studio에서 발급
+KIS_APP_KEY=                                   # (선택) 한국투자증권 OpenAPI
+KIS_APP_SECRET=
+KIS_ACCOUNT_NO=
+NAVER_CLIENT_ID=                               # (선택)
+NAVER_CLIENT_SECRET=
+NTFY_TOPIC=<YOUR_NTFY_TOPIC>                   # 추측 불가한 무작위 문자열 권장
+UPSTASH_REDIS_REST_URL=<YOUR_UPSTASH_URL>
+UPSTASH_REDIS_REST_TOKEN=<YOUR_UPSTASH_TOKEN>
 TZ=Asia/Seoul
 ```
 
