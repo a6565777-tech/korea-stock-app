@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from src import fees
 from src.collectors.price import get_snapshot
 from src.positions import load as load_positions, Position
 from src.storage import positions_store, watchlist_store
@@ -52,23 +53,54 @@ def _resolve_name(code: str, watchlist: list[dict], fallback: str) -> str:
     return fallback or str(code)
 
 
+def _project_exit(buy_price: float, qty: int, exit_price: float | None, market: str) -> dict | None:
+    """목표가/손절가 도달 시 예상 손익 (토스 수수료·세금 전후)."""
+    if not exit_price or not qty:
+        return None
+    r = fees.roundtrip_pnl(buy_price, exit_price, qty, market)
+    return {
+        "price": exit_price,
+        "gross_pnl": r["gross_pnl"],         # 수수료 전
+        "gross_pct": r["gross_pct"],
+        "net_pnl": r["net_pnl"],             # 수수료·세금 후 실손익
+        "net_pct": r["net_pct"],
+        "total_fees": r["total_fees"],       # 매수+매도 수수료·세금 합
+    }
+
+
 def _enrich(p: Position, watchlist: list[dict]) -> dict:
-    """포지션 + 현재가·손익을 API 응답용 dict로 변환"""
+    """포지션 + 현재가·손익·예상 손익·수수료 정보를 API 응답용 dict로 변환"""
     p.market = _resolve_market(p.code, watchlist)
     base = p.to_dict()
+
+    # 매수 시 총 지출 (수수료 포함) — 실제 들어간 돈
+    market_code = p.market or "KS"
+    buy_info = fees.buy_cost(p.buy_price, p.quantity)
+    base["invested"] = buy_info["total_cost"]          # 원금 + 매수 수수료
+    base["buy_fees"] = buy_info["total_fee"]
+    base["market"] = market_code
+
     snap = get_snapshot(p.code, p.market, p.name)
     if snap:
         pnl = p.pnl(snap.last)
+        # "지금 당장 매도 시" 실수령액 — 현재 순손익
+        now_net = fees.roundtrip_pnl(p.buy_price, snap.last, p.quantity, market_code)
         base.update({
             "current_price": snap.last,
             "prev_close": snap.prev_close,
             "change_pct": snap.change_pct,
             "day_change": snap.last - snap.prev_close,
-            "pnl_pct": pnl["pct"],
-            "pnl_amount": pnl["unrealized"],
+            "pnl_pct": pnl["pct"],                     # 그로스 (기존 호환)
+            "pnl_amount": pnl["unrealized"],           # 그로스
             "current_value": pnl["current_value"],
             "target_hit": pnl["target_hit"],
             "stop_hit": pnl["stop_hit"],
+            # 수수료·세금 반영 실손익 (지금 매도한다면)
+            "net_pnl": now_net["net_pnl"],
+            "net_pct": now_net["net_pct"],
+            "total_fees_now": now_net["total_fees"],
+            # 본전 가격 (이 가격 넘어야 순익)
+            "breakeven": fees.breakeven_price(p.buy_price, market_code),
         })
     else:
         base.update({
@@ -76,7 +108,17 @@ def _enrich(p: Position, watchlist: list[dict]) -> dict:
             "change_pct": None,
             "pnl_pct": None,
             "pnl_amount": None,
+            "net_pnl": None,
+            "net_pct": None,
         })
+
+    # 목표가·손절가 도달 시 projection (수수료 전후)
+    base["target_projection"] = _project_exit(
+        p.buy_price, p.quantity, p.target_price, market_code,
+    )
+    base["stop_projection"] = _project_exit(
+        p.buy_price, p.quantity, p.stop_loss, market_code,
+    )
     return base
 
 

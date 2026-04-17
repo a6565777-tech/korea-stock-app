@@ -152,24 +152,55 @@ function renderSummary(s) {
   pnlEl.classList.add(pnlClass(s.total_pnl));
 }
 
+function _projRow(label, proj) {
+  // label: "목표" or "손절", proj: {price, gross_pnl, gross_pct, net_pnl, net_pct, total_fees}
+  if (!proj) return "";
+  const icon = label === "목표" ? "🎯" : "🛑";
+  return `
+    <div class="proj-block">
+      <div class="proj-title">${icon} ${label} ${fmtWon(proj.price)} 도달 시</div>
+      <div class="proj-line">
+        <span>수수료 전</span>
+        <b class="${pnlClass(proj.gross_pnl)}">${fmtWon(proj.gross_pnl)} (${fmtPct(proj.gross_pct)})</b>
+      </div>
+      <div class="proj-line">
+        <span>수수료·세금 후 <span class="dim">(-${fmtWon(proj.total_fees)})</span></span>
+        <b class="${pnlClass(proj.net_pnl)}">${fmtWon(proj.net_pnl)} (${fmtPct(proj.net_pct)})</b>
+      </div>
+    </div>
+  `;
+}
+
 function renderPosition(p) {
   const div = document.createElement("div");
   div.className = "position-card";
   const target = p.target_hit ? '<span class="badge badge-target">🎯 목표도달</span>' : "";
   const stop = p.stop_hit ? '<span class="badge badge-stop">🛑 손절도달</span>' : "";
+  // 본전 알림 (현재가 < 본전이면 "본전까지 +X원" 표시)
+  let breakevenHint = "";
+  if (p.breakeven && p.current_price) {
+    const diff = p.breakeven - p.current_price;
+    const diffPct = (diff / p.current_price) * 100;
+    if (diff > 0) {
+      breakevenHint = `<div class="row"><span>본전 가격 <span class="dim">(수수료 포함)</span></span><b class="dim">${fmtWon(p.breakeven)} (현재보다 +${diffPct.toFixed(2)}%)</b></div>`;
+    } else {
+      breakevenHint = `<div class="row"><span>본전 가격 <span class="dim">(수수료 포함)</span></span><b class="pnl-positive">돌파 ✓ ${fmtWon(p.breakeven)}</b></div>`;
+    }
+  }
   div.innerHTML = `
     <button class="del-btn" data-code="${p.code}">✕</button>
     <div class="name">${p.name}${target}${stop}</div>
     <div class="code">${p.code} · ${p.quantity}주 @ ${fmtWon(p.buy_price)}</div>
     <div class="row"><span>현재가</span><b>${fmtWon(p.current_price)} <span class="${pnlClass(p.change_pct)}" style="font-size:12px">(${fmtPct(p.change_pct)} 일간)</span></b></div>
     <div class="row"><span>평가액</span><b>${fmtWon(p.current_value)}</b></div>
-    ${p.target_price ? `<div class="row"><span>목표가</span><b>${fmtWon(p.target_price)}</b></div>` : ""}
-    ${p.stop_loss ? `<div class="row"><span>손절가</span><b>${fmtWon(p.stop_loss)}</b></div>` : ""}
+    ${breakevenHint}
     ${p.note ? `<div class="row"><span>메모</span><b style="font-size:12px;font-weight:400">${p.note}</b></div>` : ""}
     <div class="pnl-bar">
       <div class="pnl-main ${pnlClass(p.pnl_pct)}">${fmtPct(p.pnl_pct)}</div>
-      <div class="pnl-sub ${pnlClass(p.pnl_amount)}">${fmtWon(p.pnl_amount)}</div>
+      <div class="pnl-sub ${pnlClass(p.pnl_amount)}">${fmtWon(p.pnl_amount)} <span class="dim" style="font-size:11px">(실손익 ${fmtWon(p.net_pnl)})</span></div>
     </div>
+    ${_projRow("목표", p.target_projection)}
+    ${_projRow("손절", p.stop_projection)}
   `;
   div.querySelector(".del-btn").addEventListener("click", async () => {
     if (!confirm(`${p.name} 포지션을 삭제할까요?`)) return;

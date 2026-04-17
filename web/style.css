@@ -141,6 +141,30 @@ main { padding: 12px; }
   border-radius: 8px;
   background: var(--bg-elevated);
 }
+
+.proj-block {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.proj-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.proj-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  padding: 2px 0;
+  color: var(--text-dim);
+}
+.proj-line b { font-weight: 600; font-size: 13px; }
+.dim { color: var(--text-dim); font-size: 11px; font-weight: 400; }
 .pnl-main {
   font-size: 20px;
   font-weight: 700;
