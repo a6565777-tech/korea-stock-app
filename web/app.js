@@ -196,8 +196,12 @@ function renderPosition(p) {
     ${breakevenHint}
     ${p.note ? `<div class="row"><span>메모</span><b style="font-size:12px;font-weight:400">${p.note}</b></div>` : ""}
     <div class="pnl-bar">
-      <div class="pnl-main ${pnlClass(p.pnl_pct)}">${fmtPct(p.pnl_pct)}</div>
-      <div class="pnl-sub ${pnlClass(p.pnl_amount)}">${fmtWon(p.pnl_amount)} <span class="dim" style="font-size:11px">(실손익 ${fmtWon(p.net_pnl)})</span></div>
+      <div class="pnl-net-label">실손익 <span class="dim">(수수료·세금 반영)</span></div>
+      <div class="pnl-net ${pnlClass(p.net_pnl)}">${fmtWon(p.net_pnl)} <span class="pnl-net-pct">(${fmtPct(p.net_pct)})</span></div>
+      <div class="pnl-gross-row">
+        <span class="dim">장부상 (수수료 전)</span>
+        <span class="${pnlClass(p.pnl_amount)}">${fmtWon(p.pnl_amount)} (${fmtPct(p.pnl_pct)})</span>
+      </div>
     </div>
     ${_projRow("목표", p.target_projection)}
     ${_projRow("손절", p.stop_projection)}

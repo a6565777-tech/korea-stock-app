@@ -137,10 +137,42 @@ main { padding: 12px; }
 
 .pnl-bar {
   margin-top: 10px;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
   background: var(--bg-elevated);
+  border: 2px solid var(--border);
 }
+.pnl-net-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+.pnl-net {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+}
+.pnl-net-pct {
+  font-size: 16px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+.pnl-gross-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+/* 실손익이 손실이면 카드 좌측 누적 강조 */
+.position-card:has(.pnl-net.pnl-negative) { border-left: 3px solid var(--red); }
+.position-card:has(.pnl-net.pnl-positive) { border-left: 3px solid var(--green); }
 
 .proj-block {
   margin-top: 8px;
