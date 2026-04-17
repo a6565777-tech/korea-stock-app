@@ -3,11 +3,23 @@
 const API = window.location.origin;
 
 // ── 상태 ───────────────────────────────────
+// 마지막으로 본 탭/슬롯을 localStorage에서 복원 (앱 재실행 시 그 위치로 바로)
+const _lastUI = (() => {
+  try {
+    const raw = localStorage.getItem("stockapp_ui_v1");
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+})();
 let state = {
-  tab: "positions",
-  slot: "realtime",
+  tab: _lastUI.tab || "positions",
+  slot: _lastUI.slot || "realtime",
   watchlist: [],
 };
+function saveUIState() {
+  try {
+    localStorage.setItem("stockapp_ui_v1", JSON.stringify({ tab: state.tab, slot: state.slot }));
+  } catch {}
+}
 
 // ── 유틸 ───────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -75,19 +87,26 @@ async function api(path, opts) {
 }
 
 // ── 탭 전환 ─────────────────────────────────
-document.querySelectorAll(".tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    const t = btn.dataset.tab;
-    $("tab-" + t).classList.add("active");
-    state.tab = t;
-    if (t === "positions") loadPositions();
-    if (t === "predict") loadBriefing(state.slot);
-    if (t === "watchlist") loadWatchlist();
+function activateTab(t) {
+  document.querySelectorAll(".tab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === t);
   });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  const panel = $("tab-" + t);
+  if (panel) panel.classList.add("active");
+  state.tab = t;
+  saveUIState();
+  if (t === "positions") loadPositions();
+  if (t === "predict") loadBriefing(state.slot);
+  if (t === "watchlist") loadWatchlist();
+}
+
+document.querySelectorAll(".tab").forEach((btn) => {
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
+
+// 앱 시작 시: 저장된 마지막 탭으로 복원 (기본값: positions)
+activateTab(state.tab);
 
 // ── 포지션 ─────────────────────────────────
 function renderPositionsData(data, fromCache = false) {
@@ -227,17 +246,24 @@ function updateBriefingControls(slot) {
   }
 }
 
-document.querySelectorAll(".slot-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".slot-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    state.slot = btn.dataset.slot;
-    updateBriefingControls(state.slot);
-    loadBriefing(state.slot);
+function activateSlot(s) {
+  document.querySelectorAll(".slot-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.slot === s);
   });
+  state.slot = s;
+  saveUIState();
+  updateBriefingControls(s);
+  loadBriefing(s);
+}
+
+document.querySelectorAll(".slot-btn").forEach((btn) => {
+  btn.addEventListener("click", () => activateSlot(btn.dataset.slot));
 });
 
-// 초기 로드 시에도 현재 활성 슬롯 기준으로 버튼 표시 제어
+// 초기 로드: 저장된 슬롯으로 복원 (HTML 기본은 realtime이 active지만 state가 다르면 갱신)
+document.querySelectorAll(".slot-btn").forEach((b) => {
+  b.classList.toggle("active", b.dataset.slot === state.slot);
+});
 updateBriefingControls(state.slot);
 
 function _ageMinutes(isoTs) {
@@ -298,9 +324,10 @@ async function loadBriefing(slot) {
   const text = $("briefing-text");
   const meta = $("briefing-meta");
   const cacheKey = `briefing_${slot}`;
-  // 1. 캐시 즉시 표시
+  // 1. 캐시 즉시 표시 (내용이 있을 때만 — 빈 캐시는 무시하고 서버 응답 대기)
   const cached = cacheGet(cacheKey);
-  if (cached && cached.data) {
+  const hasLocalText = !!(cached && cached.data && cached.data.text);
+  if (hasLocalText) {
     renderBriefingData(cached.data, slot, true);
   } else {
     text.textContent = "로딩중...";
@@ -309,13 +336,24 @@ async function loadBriefing(slot) {
   // 2. 백그라운드로 최신 데이터
   try {
     const data = await api(`/api/briefing/${slot}`);
+    const serverHasText = !!(data && data.text);
+
+    // 서버가 빈 응답인데 로컬에 이전 기록이 있다면 → 로컬 유지 (덮어쓰지 않음)
+    // 이유: 앱을 다시 켜도 "마지막 불러온 기록"이 그대로 보이게.
+    if (!serverHasText && hasLocalText) {
+      // 화면은 이미 캐시로 렌더됨. 추가 작업 없음.
+      return;
+    }
+
+    // 서버에 새로운 내용이 있음 → 캐시·화면 모두 갱신
+    // 또는 둘 다 비었음 → 빈 상태 안내 메시지 표시
     cacheSet(cacheKey, data);
     renderBriefingData(data, slot, false);
   } catch (e) {
-    if (!cached) {
+    // 서버 실패: 로컬 캐시가 있으면 그대로 두고, 없을 때만 에러 안내
+    if (!hasLocalText) {
       text.textContent = "서버 연결 실패. 잠시 후 새로고침(↻).";
     }
-    // 캐시 있으면 그대로 두기 (사용자가 기존 브리핑 계속 볼 수 있게)
   }
 }
 
