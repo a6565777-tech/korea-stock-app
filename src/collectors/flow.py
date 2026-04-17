@@ -1,16 +1,30 @@
-"""네이버 금융에서 종목별 외국인·기관 수급 동향 수집.
+"""네이버 모바일 JSON API로 종목별 수급(외인·기관·개인) 수집.
 
-최근 거래일 N일치 외국인/기관 순매수량을 반환.
-네이버 HTML 구조가 바뀌면 깨질 수 있음 — 실패 시 None 반환 (브리핑은 수급 없이 계속 진행).
+엔드포인트: https://m.stock.naver.com/api/stock/{code}/trend?pageSize=N
+응답 스키마(배열, 최신일 우선):
+  [{
+    "itemCode": "005930",
+    "bizdate": "20260416",
+    "foreignerPureBuyQuant": "+1,689,165",
+    "foreignerHoldRatio": "49.26%",
+    "organPureBuyQuant": "+1,432,694",
+    "individualPureBuyQuant": "-4,968,280",
+    "closePrice": "217,500",
+    "compareToPreviousClosePrice": "6,500",
+    "compareToPreviousPrice": {...},
+    "accumulatedTradingVolume": "21,499,788"
+  }, ...]
+
+기존 HTML 파싱(finance.naver.com/item/frgn.naver) 방식은 네이버가 JS 동적 로딩으로
+전환하면서 깨져서 교체. JSON API는 숫자가 부호·콤마 포함 문자열이므로 _parse_signed로 처리.
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 import requests
 
-_URL = "https://finance.naver.com/item/frgn.naver"
+_URL = "https://m.stock.naver.com/api/stock/{code}/trend"
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -19,99 +33,128 @@ _UA = (
 
 @dataclass
 class FlowRow:
-    date: str              # "2026.04.17"
+    date: str              # "2026-04-16"
     close: int             # 종가
     volume: int            # 거래량
     foreign_net: int       # 외국인 순매수 주수 (양수=순매수, 음수=순매도)
     inst_net: int          # 기관 순매수 주수
+    individual_net: int    # 개인 순매수 주수 (✨새로 추가)
     foreign_ratio: float   # 외국인 보유비율 %
 
 
-_NUM_RE = re.compile(r"[-+]?[\d,]+")
+def _parse_signed(s: str) -> int:
+    """'+1,234,567' / '-5,000' / '123' → int."""
+    s = (s or "").replace(",", "").replace("+", "").strip()
+    try:
+        return int(s)
+    except Exception:
+        return 0
 
 
-def _parse_int(s: str) -> int:
-    s = (s or "").replace(",", "").replace("&nbsp;", "").strip()
-    m = re.match(r"[-+]?\d+", s)
-    return int(m.group(0)) if m else 0
-
-
-def _parse_float(s: str) -> float:
-    s = (s or "").replace(",", "").replace("%", "").replace("&nbsp;", "").strip()
+def _parse_percent(s: str) -> float:
+    s = (s or "").replace("%", "").replace(",", "").strip()
     try:
         return float(s)
     except Exception:
         return 0.0
 
 
+def _fmt_date(yyyymmdd: str) -> str:
+    if len(yyyymmdd) == 8 and yyyymmdd.isdigit():
+        return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}"
+    return yyyymmdd
+
+
 def get_flow(code: str, days: int = 5) -> list[FlowRow] | None:
-    """종목코드의 최근 N거래일 외국인·기관 매매 동향. 실패 시 None."""
+    """종목코드의 최근 N거래일 외인·기관·개인 매매 동향. 실패 시 None."""
     try:
         r = requests.get(
-            _URL,
-            params={"code": code},
-            headers={"User-Agent": _UA, "Referer": "https://finance.naver.com/"},
+            _URL.format(code=code),
+            params={"pageSize": max(days, 5)},
+            headers={"User-Agent": _UA, "Referer": "https://m.stock.naver.com/"},
             timeout=8,
         )
-        r.encoding = "euc-kr"
-        html = r.text
+        r.raise_for_status()
+        data = r.json()
     except Exception as e:
-        print(f"[flow] {code} HTTP 실패: {e}")
+        print(f"[flow] {code} 조회 실패: {e}")
         return None
 
-    tr_pattern = re.compile(r"<tr[^>]*onmouseover[^>]*>(.*?)</tr>", re.DOTALL)
-    td_pattern = re.compile(r"<td[^>]*>(.*?)</td>", re.DOTALL)
-    tag_pattern = re.compile(r"<[^>]+>")
+    if not isinstance(data, list) or not data:
+        return None
 
     rows: list[FlowRow] = []
-    for tr_match in tr_pattern.finditer(html):
-        tr_html = tr_match.group(1)
-        tds_raw = td_pattern.findall(tr_html)
-        tds = [tag_pattern.sub("", t).replace("&nbsp;", "").strip() for t in tds_raw]
-        if len(tds) < 9:
-            continue
-        date_str = tds[0]
-        if not re.match(r"\d{4}\.\d{2}\.\d{2}", date_str):
-            continue
+    for item in data[:days]:
         try:
             rows.append(
                 FlowRow(
-                    date=date_str,
-                    close=_parse_int(tds[1]),
-                    volume=_parse_int(tds[4]),
-                    foreign_net=_parse_int(tds[5]),
-                    inst_net=_parse_int(tds[6]),
-                    foreign_ratio=_parse_float(tds[8]),
+                    date=_fmt_date(item.get("bizdate", "")),
+                    close=_parse_signed(item.get("closePrice", "0")),
+                    volume=_parse_signed(item.get("accumulatedTradingVolume", "0")),
+                    foreign_net=_parse_signed(item.get("foreignerPureBuyQuant", "0")),
+                    inst_net=_parse_signed(item.get("organPureBuyQuant", "0")),
+                    individual_net=_parse_signed(item.get("individualPureBuyQuant", "0")),
+                    foreign_ratio=_parse_percent(item.get("foreignerHoldRatio", "0%")),
                 )
             )
-        except Exception:
+        except Exception as e:
+            print(f"[flow] {code} 행 파싱 실패 (무시): {e}")
             continue
-        if len(rows) >= days:
-            break
 
     return rows if rows else None
 
 
+def _k(n: int) -> str:
+    """주수를 보기 좋은 축약 표기: 1,234,567 → '123만주'."""
+    sign = "+" if n > 0 else ("-" if n < 0 else "")
+    n = abs(n)
+    if n >= 10_000_000:   # 천만 이상 → '억'
+        return f"{sign}{n/100_000_000:.2f}억주"
+    if n >= 10_000:       # 만 이상 → '만'
+        return f"{sign}{n/10_000:.1f}만주"
+    return f"{sign}{n:,}주"
+
+
 def format_flow_summary(rows: list[FlowRow]) -> str:
-    """Gemini 프롬프트용 짧은 요약 문자열."""
+    """Gemini 프롬프트용 수급 요약. 매수/매도 패턴·연속성·개인 vs 외기관 대비까지 포함."""
     if not rows:
         return "수급 데이터 없음"
 
-    foreign_total = sum(r.foreign_net for r in rows)
-    inst_total = sum(r.inst_net for r in rows)
-    foreign_days_buy = sum(1 for r in rows if r.foreign_net > 0)
-    inst_days_buy = sum(1 for r in rows if r.inst_net > 0)
+    f_total = sum(r.foreign_net for r in rows)
+    i_total = sum(r.inst_net for r in rows)
+    p_total = sum(r.individual_net for r in rows)
+
+    f_buy_days = sum(1 for r in rows if r.foreign_net > 0)
+    i_buy_days = sum(1 for r in rows if r.inst_net > 0)
+    p_buy_days = sum(1 for r in rows if r.individual_net > 0)
+    n = len(rows)
+
+    # 패턴 레이블 (Gemini가 빠르게 해석할 수 있도록)
+    pattern = ""
+    if f_total > 0 and i_total > 0:
+        pattern = "🔥 외인+기관 동반 순매수 (강세 시그널)"
+    elif f_total < 0 and i_total < 0:
+        if p_total > 0:
+            pattern = "⚠️ 외인·기관 매도 + 개인만 매수 (개미 물림 위험)"
+        else:
+            pattern = "❄️ 외인+기관 동반 순매도 (약세 시그널)"
+    elif f_total > 0 and i_total < 0:
+        pattern = "🟡 외인 매수 / 기관 매도 (엇갈림)"
+    elif f_total < 0 and i_total > 0:
+        pattern = "🟡 외인 매도 / 기관 매수 (엇갈림)"
 
     lines = [
-        f"최근 {len(rows)}거래일: 외국인 누적 {foreign_total:+,}주 "
-        f"({foreign_days_buy}일 순매수) / 기관 누적 {inst_total:+,}주 "
-        f"({inst_days_buy}일 순매수)",
-        f"외국인 지분율: {rows[0].foreign_ratio:.2f}%",
-        "일자별:",
+        f"최근 {n}거래일 수급:",
+        f"  {pattern}" if pattern else "  (방향성 불분명)",
+        f"  외인 누적 {_k(f_total)} ({f_buy_days}/{n}일 순매수)",
+        f"  기관 누적 {_k(i_total)} ({i_buy_days}/{n}일 순매수)",
+        f"  개인 누적 {_k(p_total)} ({p_buy_days}/{n}일 순매수)",
+        f"  외인 지분율: {rows[0].foreign_ratio:.2f}%",
+        "  일자별 (최근→과거):",
     ]
     for r in rows:
         lines.append(
-            f"  {r.date}: 외인 {r.foreign_net:+,} / 기관 {r.inst_net:+,}"
+            f"    {r.date}: 외인 {_k(r.foreign_net)} / 기관 {_k(r.inst_net)} / 개인 {_k(r.individual_net)}"
         )
     return "\n".join(lines)
 
