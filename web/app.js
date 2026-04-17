@@ -204,14 +204,41 @@ $("add-form").addEventListener("submit", async (e) => {
 });
 
 // ── 브리핑 ─────────────────────────────────
+
+// 슬롯별 메타: 예약 시각, 자동 스케줄 여부
+const SLOT_INFO = {
+  realtime:  { icon: "⚡", label: "실시간",    scheduled: null,      autoGen: true  },
+  overnight: { icon: "🌙", label: "자정",      scheduled: "00:00",   autoGen: false },
+  morning:   { icon: "🌅", label: "아침",      scheduled: "08:00",   autoGen: false },
+  midday:    { icon: "🍱", label: "점심",      scheduled: "12:00",   autoGen: false },
+  afternoon: { icon: "⏰", label: "오후",      scheduled: "14:00",   autoGen: false },
+  closing:   { icon: "🔔", label: "마감",      scheduled: "15:40",   autoGen: false },
+};
+
+function updateBriefingControls(slot) {
+  // 실시간 탭에서만 수동 생성 버튼 노출. 예약 슬롯은 조회 전용.
+  const btn = $("run-predict-btn");
+  if (!btn) return;
+  if (slot === "realtime") {
+    btn.style.display = "";
+    btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
+  } else {
+    btn.style.display = "none";
+  }
+}
+
 document.querySelectorAll(".slot-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".slot-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     state.slot = btn.dataset.slot;
+    updateBriefingControls(state.slot);
     loadBriefing(state.slot);
   });
 });
+
+// 초기 로드 시에도 현재 활성 슬롯 기준으로 버튼 표시 제어
+updateBriefingControls(state.slot);
 
 function _ageMinutes(isoTs) {
   if (!isoTs) return null;
@@ -237,9 +264,18 @@ function renderBriefingData(data, slot, fromCache = false) {
   banner.textContent = "";
 
   if (!data || !data.text) {
-    text.textContent = slot === "realtime"
-      ? "아직 생성된 실시간 브리핑이 없습니다.\n아래 버튼으로 지금 생성하세요.\n(예약 브리핑: 00:00/08:00/12:00/14:00/15:40)"
-      : `아직 '${slot}' 브리핑이 없습니다.`;
+    if (slot === "realtime") {
+      text.textContent =
+        "아직 생성된 실시간 브리핑이 없습니다.\n" +
+        "아래 버튼으로 지금(현재 시각 기준) 생성하세요.";
+    } else {
+      const info = SLOT_INFO[slot];
+      const sched = info ? info.scheduled : "";
+      text.textContent =
+        `아직 '${info ? info.label : slot}' 슬롯 브리핑이 없습니다.\n\n` +
+        (sched ? `이 브리핑은 매 영업일 ${sched} 자동 생성됩니다.\n` : "") +
+        `즉시 현재 시각 기준 분석을 보려면 [⚡ 실시간] 탭으로 이동하세요.`;
+    }
     meta.textContent = "";
   } else {
     text.textContent = data.text;

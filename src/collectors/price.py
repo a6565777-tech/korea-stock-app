@@ -16,6 +16,9 @@ class PriceSnapshot:
     volume_ratio: float  # 거래량 배수
     week_52_high: float
     week_52_low: float
+    # 최근 10거래일 평균 일간 변동폭(%). (고가-저가)/시가.
+    # 종목별 현실적 목표/손절 범위 산정용. (삼성 ~1.5%, 테마주 ~6%)
+    daily_range_pct: float
     updated: datetime
 
     def summary(self) -> str:
@@ -29,7 +32,7 @@ class PriceSnapshot:
             price = f"${self.last:,.2f}"
         return (
             f"{self.name}: {price} {arrow}{abs(self.change_pct):.2f}% "
-            f"(거래량 {self.volume_ratio:.1f}x)"
+            f"(거래량 {self.volume_ratio:.1f}x · 일변동폭 {self.daily_range_pct:.1f}%)"
         )
 
 
@@ -61,6 +64,22 @@ def get_snapshot(code: str, market: str = "KS", name: str | None = None) -> Pric
         avg_vol = int(hist["Volume"].tail(20).mean())
         vol_ratio = volume / avg_vol if avg_vol else 0.0
 
+        # 최근 10거래일 평균 일간 변동폭(%)
+        tail = hist.tail(10)
+        daily_range_pct = 0.0
+        try:
+            ranges = []
+            for _, row in tail.iterrows():
+                o = float(row["Open"])
+                h = float(row["High"])
+                l = float(row["Low"])
+                if o > 0:
+                    ranges.append((h - l) / o * 100)
+            if ranges:
+                daily_range_pct = sum(ranges) / len(ranges)
+        except Exception:
+            daily_range_pct = 0.0
+
         return PriceSnapshot(
             symbol=symbol,
             name=name or symbol,
@@ -72,6 +91,7 @@ def get_snapshot(code: str, market: str = "KS", name: str | None = None) -> Pric
             volume_ratio=vol_ratio,
             week_52_high=float(hist["High"].max()),
             week_52_low=float(hist["Low"].min()),
+            daily_range_pct=daily_range_pct,
             updated=datetime.now(),
         )
     except Exception as e:
