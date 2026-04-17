@@ -1,6 +1,6 @@
 {
-  "name": "주식 알림",
-  "short_name": "주식알림",
+  "name": "MY주식알림",
+  "short_name": "MY주식알림",
   "description": "개인용 한국 주식 브리핑 및 포지션 트래커",
   "start_url": "/",
   "scope": "/",
