@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime
 import yfinance as yf
 
+from src import timez
+
 
 @dataclass
 class PriceSnapshot:
@@ -92,7 +94,7 @@ def get_snapshot(code: str, market: str = "KS", name: str | None = None) -> Pric
             week_52_high=float(hist["High"].max()),
             week_52_low=float(hist["Low"].min()),
             daily_range_pct=daily_range_pct,
-            updated=datetime.now(),
+            updated=timez.now(),
         )
     except Exception as e:
         print(f"[price] {symbol} 조회 실패: {e}")

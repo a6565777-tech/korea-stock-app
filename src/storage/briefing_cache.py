@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from src import timez
 
 _LOCAL_DIR = Path(__file__).parent.parent.parent / "data" / "briefings"
 _REDIS_KEY = "briefing:v1"   # { slot: {ts, text} } 해시
@@ -40,7 +41,7 @@ def save(slot: str, text: str) -> None:
     record = {
         "slot": slot,
         "text": text,
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": timez.now_iso(),  # 항상 KST
     }
     if _redis_enabled():
         _redis_call(["HSET", _REDIS_KEY, slot, json.dumps(record, ensure_ascii=False)])
