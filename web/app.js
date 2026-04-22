@@ -550,18 +550,148 @@ async function runWatchSearch(q) {
   }
 }
 
+// ── 공통 새로고침 ───────────────────────────
+// 현재 탭에 맞는 데이터 로더를 Promise로 반환. PTR/버튼 양쪽에서 재사용.
+function refreshCurrentTab() {
+  if (state.tab === "positions") return loadPositions();
+  if (state.tab === "predict") return loadBriefing(state.slot);
+  if (state.tab === "watchlist") return loadWatchlist();
+  return Promise.resolve();
+}
+
 // ── 상단 새로고침 ───────────────────────────
 $("refresh-btn").addEventListener("click", () => {
-  if (state.tab === "positions") loadPositions();
-  if (state.tab === "predict") loadBriefing(state.slot);
-  if (state.tab === "watchlist") loadWatchlist();
+  refreshCurrentTab();
   toast("새로고침");
 });
+
+// ── Pull-to-refresh ────────────────────────
+// 페이지 최상단에서 아래로 드래그하면 리프레시. iOS 바운스와 충돌 피하려고
+// scrollY===0 일 때만 시작. 모달 떠있으면 스킵.
+(() => {
+  const THRESHOLD = 70;      // 이 이상 당겨야 새로고침 발동
+  const MAX_PULL = 120;      // 시각적 최대 당김 거리
+  const RESIST = 0.5;        // 저항 계수 (손가락 이동 거리의 절반만 내려옴)
+
+  // 인디케이터 DOM 생성 (HTML 안 건드리려고 JS에서 주입)
+  const ptr = document.createElement("div");
+  ptr.id = "ptr";
+  ptr.innerHTML = '<span class="ptr-icon">↓</span>';
+  document.body.appendChild(ptr);
+  const icon = ptr.querySelector(".ptr-icon");
+
+  let startY = null;
+  let pulling = false;
+  let refreshing = false;
+
+  function modalOpen() {
+    return !$("add-modal").classList.contains("hidden");
+  }
+
+  function setPull(distance) {
+    const y = Math.min(distance, MAX_PULL) - 60;   // -60 = 숨김 위치
+    ptr.style.transform = `translateY(${y}px)`;
+    // 70% 이상 당기면 화살표를 ↑로 바꿔서 "놓으면 새로고침" 힌트
+    const ratio = distance / THRESHOLD;
+    if (ratio >= 1) {
+      icon.style.transform = "rotate(180deg)";
+    } else {
+      icon.style.transform = `rotate(${ratio * 180}deg)`;
+    }
+  }
+
+  function reset() {
+    pulling = false;
+    startY = null;
+    ptr.classList.remove("dragging");
+    ptr.style.transform = "";
+    icon.style.transform = "";
+  }
+
+  document.addEventListener("touchstart", (e) => {
+    if (refreshing || modalOpen()) return;
+    if (window.scrollY > 0) return;   // 이미 스크롤 내려가 있으면 PTR 안 함
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    pulling = false;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (e) => {
+    if (startY == null || refreshing) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0) {
+      // 위로 스와이프하거나 제자리 — PTR 중단
+      if (pulling) reset();
+      return;
+    }
+    // 아래로 드래그. scrollY === 0 이어야만 PTR 상태 진입.
+    if (window.scrollY > 0) {
+      reset();
+      return;
+    }
+    if (!pulling) {
+      pulling = true;
+      ptr.classList.add("dragging");
+    }
+    const distance = dy * RESIST;
+    setPull(distance);
+    // 저항 걸고 나서도 충분히 내려왔으면 기본 스크롤 막음 (iOS 바운스 방지)
+    if (distance > 10 && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchend", async () => {
+    if (!pulling || refreshing) {
+      if (pulling) reset();
+      return;
+    }
+    // 마지막 translateY 계산: 현재 transform 파싱 대신, 당긴 거리 재계산
+    // 간단히 transform 스타일에서 Y 추출
+    const m = /translateY\((-?\d+(?:\.\d+)?)px\)/.exec(ptr.style.transform);
+    const currentY = m ? parseFloat(m[1]) : -60;
+    const pulledDistance = currentY + 60;   // 보이는 정도
+
+    ptr.classList.remove("dragging");
+
+    if (pulledDistance >= THRESHOLD) {
+      // 새로고침 발동
+      refreshing = true;
+      ptr.classList.add("refreshing");
+      ptr.style.transform = "";   // CSS 의 translateY(0) 으로
+      try {
+        await refreshCurrentTab();
+        toast("새로고침됨");
+      } catch {
+        toast("새로고침 실패");
+      } finally {
+        ptr.classList.remove("refreshing");
+        refreshing = false;
+        reset();
+      }
+    } else {
+      // 임계치 미달 — 원복
+      reset();
+    }
+  }, { passive: true });
+})();
 
 // ── Service Worker 등록 (PWA) ──────────────
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("SW 등록 실패", e));
+    // updateViaCache: 'none' → SW 파일 자체를 HTTP 캐시 거치지 않고 항상 네트워크로 받음.
+    // 배포 후 재실행 1번만에 새 SW 감지되도록.
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+      .then((reg) => {
+        // 앱 열 때마다 업데이트 체크
+        reg.update().catch(() => {});
+      })
+      .catch((e) => console.warn("SW 등록 실패", e));
+  });
+  // 새 SW 가 활성화되면 현재 페이지도 1회만 리로드 → 새 JS/CSS 즉시 반영.
+  let _reloadedForSW = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (_reloadedForSW) return;
+    _reloadedForSW = true;
+    window.location.reload();
   });
 }
 

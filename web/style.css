@@ -29,6 +29,50 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Pull-to-refresh 인디케이터 — 최상단에 고정, 아래로 드래그하면 내려오고 손 떼면 튀어 올라감.
+   z-index 는 header(5) 보다 위, modal(100) 보다 아래. 당기는 동안엔 헤더 위에 떠 있게 됨. */
+#ptr {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transform: translateY(-60px);
+  transition: transform 0.25s ease;
+  z-index: 50;
+  color: var(--accent);
+  font-size: 20px;
+  padding-top: env(safe-area-inset-top, 0);
+  background: linear-gradient(to bottom, var(--bg), rgba(10,14,26,0));
+}
+#ptr.dragging { transition: none; }
+#ptr.refreshing { transform: translateY(0); }
+#ptr .ptr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+#ptr.refreshing .ptr-icon {
+  animation: ptr-spin 0.8s linear infinite;
+}
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
 header {
   display: flex;
   align-items: center;

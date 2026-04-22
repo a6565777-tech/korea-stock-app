@@ -1,5 +1,5 @@
 // 간단한 캐시 서비스 워커 (PWA 기본 요건)
-const CACHE = "stock-app-v9";
+const CACHE = "stock-app-v12";
 const ASSETS = ["/", "/index.html", "/style.css", "/app.js", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
