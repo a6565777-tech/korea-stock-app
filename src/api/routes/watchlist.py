@@ -38,6 +38,11 @@ def list_watchlist():
             "prev_close": snap.prev_close if snap else None,
             "change_pct": snap.change_pct if snap else None,
             "day_change": (snap.last - snap.prev_close) if snap else None,
+            "open": snap.open if snap else None,
+            "high": snap.high if snap else None,
+            "low": snap.low if snap else None,
+            "trade_date": snap.trade_date.isoformat() if snap else None,
+            "is_stale": snap.is_stale if snap else None,
         })
     return {"items": items}
 

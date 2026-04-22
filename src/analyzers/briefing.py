@@ -536,19 +536,42 @@ def build_context(cfg: dict, news_hours: int = 24) -> tuple[str, list[Position],
         news = search_news(stock["news_keywords"], limit=4, recent_hours=news_hours)
         lines.append(f"\n### {stock['name']} ({stock['code']}) - {stock['sector']}")
         lines.append(f"주요 영향 요인: {', '.join(stock['drivers'])}")
+        # 외국인·기관 수급 (실패 시 조용히 스킵) — price trade_date 교차검증에 사용
+        flow = get_flow(stock["code"], days=5)
         if snap:
             lines.append(f"현재가: {snap.summary()}")
             # Gemini가 숫자를 지어내는 문제 방지 — 확정값을 명시적으로 박아둠
             lines.append(
+                f"★ 기준 거래일: {snap.trade_date.isoformat()}"
+                f" (전일 종가 기준일: {snap.prev_trade_date.isoformat()})"
+            )
+            lines.append(
                 f"★ 확정 현재가: ₩{snap.last:,.0f}  "
                 f"★ 확정 전일 종가: ₩{snap.prev_close:,.0f}  "
+                f"★ 당일 시가: ₩{snap.open:,.0f}  "
+                f"★ 당일 고/저: ₩{snap.high:,.0f} / ₩{snap.low:,.0f}  "
                 f"★ 일간 평균 변동폭: {snap.daily_range_pct:.1f}%  "
                 f"(이 값들을 그대로 쓸 것. 목표/손절 %는 일변동폭 기반으로 산출)"
             )
+            if snap.is_stale:
+                lines.append(
+                    "⚠️ 스테일: yfinance 데이터가 오늘자로 업데이트 안 됨. "
+                    "위 '현재가'는 전 영업일 종가임. 오늘 실시간 판단에는 부적합."
+                )
+            # 기준일 교차검증: Naver flow 가 yfinance 보다 더 최신일 때만 경고
+            # (장중엔 flow bizdate 가 전일인 게 정상이므로 그 방향은 경고 안 함)
+            if flow:
+                try:
+                    flow_date = flow[0].date  # "YYYY-MM-DD"
+                    if flow_date > snap.trade_date.isoformat():
+                        lines.append(
+                            f"⚠️ yfinance 지연 의심: yfinance={snap.trade_date.isoformat()} "
+                            f"< 네이버 수급={flow_date}. 가격 데이터가 하루 뒤처졌을 수 있음."
+                        )
+                except Exception:
+                    pass
         lines.append("최근 뉴스:")
         lines.append(_format_news(news, max_n=4))
-        # 외국인·기관 수급 (실패 시 조용히 스킵)
-        flow = get_flow(stock["code"], days=5)
         if flow:
             lines.append("수급:")
             lines.append("  " + format_flow_summary(flow).replace("\n", "\n  "))

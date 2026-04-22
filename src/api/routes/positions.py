@@ -90,6 +90,11 @@ def _enrich(p: Position, watchlist: list[dict]) -> dict:
             "prev_close": snap.prev_close,
             "change_pct": snap.change_pct,
             "day_change": snap.last - snap.prev_close,
+            "open": snap.open,
+            "high": snap.high,
+            "low": snap.low,
+            "trade_date": snap.trade_date.isoformat(),
+            "is_stale": snap.is_stale,
             "pnl_pct": pnl["pct"],                     # 그로스 (기존 호환)
             "pnl_amount": pnl["unrealized"],           # 그로스
             "current_value": pnl["current_value"],

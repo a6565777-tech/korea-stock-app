@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime, time as dtime
 from pathlib import Path
 
+from src import timez
 from src.config import load as load_config
 from src.collectors.price import get_snapshot, PriceSnapshot
 from src.collectors.news import search as search_news
@@ -100,20 +101,21 @@ def _is_on_cooldown(code: str, cooldown: dict[str, str]) -> bool:
     if not last:
         return False
     last_dt = datetime.fromisoformat(last)
-    return (datetime.now() - last_dt).total_seconds() < COOLDOWN_MINUTES * 60
+    return (timez.now() - last_dt).total_seconds() < COOLDOWN_MINUTES * 60
 
 
 def _mark_alerted(code: str, cooldown: dict[str, str]) -> None:
-    cooldown[code] = datetime.now().isoformat()
+    cooldown[code] = timez.now().isoformat()
     _save_cooldown(cooldown)
 
 
 # ── 로깅 ────────────────────────────────────────
 def _log(msg: str) -> None:
-    ts = datetime.now().strftime("%H:%M:%S")
+    now = timez.now()
+    ts = now.strftime("%H:%M:%S")
     line = f"[{ts}] {msg}"
     print(line, flush=True)
-    logfile = _LOG_DIR / f"realtime_{datetime.now().strftime('%Y-%m-%d')}.log"
+    logfile = _LOG_DIR / f"realtime_{now.strftime('%Y-%m-%d')}.log"
     try:
         with logfile.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -343,7 +345,7 @@ def check_once(cfg: dict, cooldown: dict[str, str]) -> int:
 
 
 def is_market_open() -> bool:
-    now = datetime.now()
+    now = timez.now()
     if now.weekday() >= 5:   # 주말
         return False
     return MARKET_OPEN <= now.time() <= MARKET_CLOSE
