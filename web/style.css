@@ -532,6 +532,68 @@ details summary {
 }
 .toast.hidden { display: none; }
 
+/* 적중률 탭 */
+.acc-intro {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.acc-intro p { margin: 0; }
+.acc-section-title {
+  font-size: 14px;
+  margin: 18px 0 8px;
+  color: var(--text-dim);
+}
+.acc-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.acc-overall {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  letter-spacing: -0.3px;
+}
+.acc-overall .dim { font-size: 13px; font-weight: 400; color: var(--text-dim); }
+.acc-signal-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+.acc-signal-row:first-of-type { border-top: none; }
+.acc-signal-row .emoji { width: 28px; }
+.acc-signal-row .num { font-weight: 600; }
+
+.acc-pred-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.acc-pred-card .name { font-weight: 600; font-size: 14px; }
+.acc-pred-card .date { color: var(--text-dim); font-size: 11px; }
+.acc-pred-card .meta { font-size: 12px; color: var(--text-dim); grid-column: 1 / -1; }
+.acc-pred-card .result { font-weight: 700; }
+.acc-pred-card .result.hit { color: var(--green); }
+.acc-pred-card .result.miss { color: var(--red); }
+.acc-pred-card .result.pending { color: var(--text-dim); }
+
 /* 로딩 */
 .loading {
   text-align: center;

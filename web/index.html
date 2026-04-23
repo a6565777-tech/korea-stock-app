@@ -22,6 +22,7 @@
   <button class="tab active" data-tab="positions">💼 내 포지션</button>
   <button class="tab" data-tab="predict">📊 오늘 예측</button>
   <button class="tab" data-tab="watchlist">👀 관심종목</button>
+  <button class="tab" data-tab="accuracy">🎯 적중률</button>
 </nav>
 
 <main>
@@ -53,6 +54,16 @@
     <div id="briefing-meta" class="meta"></div>
     <pre id="briefing-text" class="briefing-text"></pre>
     <button id="run-predict-btn" class="secondary-btn">🤖 지금 새 브리핑 생성 (Gemini 호출)</button>
+  </section>
+
+  <!-- 적중률 탭 -->
+  <section id="tab-accuracy" class="tab-panel">
+    <div class="acc-intro">
+      <p>AI 예측이 실제로 얼마나 맞았는지 추적합니다. 기록이 쌓이면 프롬프트가 자동 교정됨.</p>
+    </div>
+    <div id="accuracy-summary"></div>
+    <h3 class="acc-section-title">최근 예측 내역</h3>
+    <div id="accuracy-list"></div>
   </section>
 
   <!-- 관심종목 탭 -->

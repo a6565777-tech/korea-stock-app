@@ -99,6 +99,7 @@ function activateTab(t) {
   if (t === "positions") loadPositions();
   if (t === "predict") loadBriefing(state.slot);
   if (t === "watchlist") loadWatchlist();
+  if (t === "accuracy") loadAccuracy();
 }
 
 document.querySelectorAll(".tab").forEach((btn) => {
@@ -392,13 +393,17 @@ async function loadBriefing(slot) {
   }
 }
 
-$("run-predict-btn").addEventListener("click", async () => {
-  if (!confirm("Gemini API를 호출해서 새 브리핑을 생성합니다. 계속?")) return;
+// 실시간 브리핑 재생성 로직 — 버튼 & PTR 공유.
+// confirmFirst=false 면 확인창 스킵 (PTR 경로에서 사용 — 당겼다는 것 자체가 의도표명).
+async function regenerateBriefing(confirmFirst = true) {
+  if (confirmFirst && !confirm("Gemini API를 호출해서 새 브리핑을 생성합니다. 계속?")) return;
   const btn = $("run-predict-btn");
   const text = $("briefing-text");
   const meta = $("briefing-meta");
-  btn.disabled = true;
-  btn.textContent = "생성 중... (20~40초)";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "생성 중... (20~40초)";
+  }
   text.textContent = "⏳ Gemini 호출 중...\n(무료 티어는 최대 60초 소요)";
   meta.textContent = "";
   try {
@@ -425,10 +430,14 @@ $("run-predict-btn").addEventListener("click", async () => {
       meta.textContent = "error · " + new Date().toLocaleString("ko-KR");
     }
   } finally {
-    btn.disabled = false;
-    btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
+    }
   }
-});
+}
+
+$("run-predict-btn").addEventListener("click", () => regenerateBriefing(true));
 
 // ── 관심종목 ───────────────────────────────
 function renderWatchlistData(data) {
@@ -551,12 +560,134 @@ async function runWatchSearch(q) {
 }
 
 // ── 공통 새로고침 ───────────────────────────
-// 현재 탭에 맞는 데이터 로더를 Promise로 반환. PTR/버튼 양쪽에서 재사용.
+// 현재 탭에 맞는 "갱신" 동작을 Promise로 반환. PTR/버튼 공통.
+// 📊 예측 탭은 "당기기=새 브리핑 생성(Gemini 호출)"으로 매핑 — 사용자 요구.
+//   단, 실시간이 아닌 예약 슬롯(자정/아침 등)은 자동 스케줄러가 생성하므로
+//   재생성 불가, 그냥 서버 캐시 재조회.
 function refreshCurrentTab() {
   if (state.tab === "positions") return loadPositions();
-  if (state.tab === "predict") return loadBriefing(state.slot);
+  if (state.tab === "predict") {
+    if (state.slot === "realtime") {
+      return regenerateBriefing(false);   // 확인창 없이 바로 Gemini 재호출
+    }
+    return loadBriefing(state.slot);
+  }
   if (state.tab === "watchlist") return loadWatchlist();
+  if (state.tab === "accuracy") return loadAccuracy();
   return Promise.resolve();
+}
+
+// ── 적중률 탭 ───────────────────────────────
+const SIGNAL_LABELS = {
+  "🟢": "매수 추천",
+  "🟡": "매수 조심",
+  "⚪": "관망",
+  "🟠": "매수 비추천",
+  "🔴": "매도 고려",
+};
+
+function renderAccuracy(summary, recent) {
+  const sumEl = $("accuracy-summary");
+  const listEl = $("accuracy-list");
+  // 요약
+  if (!summary || summary.scored === 0) {
+    sumEl.innerHTML = `
+      <div class="acc-summary-card">
+        <div class="acc-overall">—</div>
+        <div class="dim" style="color:var(--text-dim);font-size:13px">
+          아직 채점된 예측이 없습니다. 브리핑이 생성되고 다음 영업일이 지나면 자동으로 채점됩니다.
+        </div>
+      </div>
+    `;
+  } else {
+    const rows = ["🟢", "🟡", "⚪", "🟠", "🔴"]
+      .map((e) => {
+        const b = summary.by_signal[e];
+        if (!b) return "";
+        return `
+          <div class="acc-signal-row">
+            <span><span class="emoji">${e}</span>${SIGNAL_LABELS[e]} (${b.count}건)</span>
+            <span>
+              <span class="num pnl-positive">목표 ${b.hit_rate}%</span>
+              <span class="dim"> · </span>
+              <span class="num pnl-negative">손절 ${b.stop_rate}%</span>
+            </span>
+          </div>
+        `;
+      })
+      .join("");
+    sumEl.innerHTML = `
+      <div class="acc-summary-card">
+        <div class="acc-overall">
+          ${summary.overall_target_hit_rate}% <span class="dim">(전체 목표가 도달률, 최근 ${summary.period_days}일 · 채점 ${summary.scored}건)</span>
+        </div>
+        ${rows}
+      </div>
+    `;
+  }
+
+  // 최근 예측 상세
+  if (!recent || !recent.items || !recent.items.length) {
+    listEl.innerHTML = '<div class="empty">최근 예측 기록 없음.</div>';
+    return;
+  }
+  listEl.innerHTML = recent.items
+    .slice(0, 40)
+    .map((p) => {
+      let resultBadge = '<span class="result pending">대기중</span>';
+      if (p.outcome) {
+        if (p.outcome.target_hit && !p.outcome.stop_hit) {
+          resultBadge = '<span class="result hit">✅ 목표도달</span>';
+        } else if (p.outcome.stop_hit && !p.outcome.target_hit) {
+          resultBadge = '<span class="result miss">❌ 손절도달</span>';
+        } else if (p.outcome.target_hit && p.outcome.stop_hit) {
+          resultBadge = '<span class="result miss">⚠️ 둘 다 도달</span>';
+        } else {
+          // 도달 안 함 — 시그널별 판단
+          const goodSignal = p.signal === "🟢" || p.signal === "🟡";
+          const cls = goodSignal ? "miss" : "hit";
+          resultBadge = `<span class="result ${cls}">○ 미도달</span>`;
+        }
+      }
+      return `
+        <div class="acc-pred-card">
+          <div class="name">${p.signal} ${p.name}</div>
+          <div class="date">${p.date} · ${p.slot}</div>
+          <div class="meta">
+            확률 ${p.probability}%${p.anchor_prob ? ` (앵커 ${p.anchor_prob}%)` : ""}
+            ${p.target_price ? ` · 🎯 ₩${p.target_price.toLocaleString()}` : ""}
+            ${p.stop_price ? ` · 🛑 ₩${p.stop_price.toLocaleString()}` : ""}
+          </div>
+          <div style="grid-column: 1 / -1; text-align: right">${resultBadge}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadAccuracy() {
+  const sumEl = $("accuracy-summary");
+  const listEl = $("accuracy-list");
+  // 캐시 즉시 표시
+  const cached = cacheGet("accuracy");
+  if (cached && cached.data) {
+    renderAccuracy(cached.data.summary, cached.data.recent);
+  } else {
+    sumEl.innerHTML = '<div class="loading">로딩중...</div>';
+    listEl.innerHTML = "";
+  }
+  try {
+    const [summary, recent] = await Promise.all([
+      api("/api/accuracy?days=30"),
+      api("/api/accuracy/recent?days=30"),
+    ]);
+    cacheSet("accuracy", { summary, recent });
+    renderAccuracy(summary, recent);
+  } catch (e) {
+    if (!cached) {
+      sumEl.innerHTML = '<div class="empty">서버 연결 실패.</div>';
+    }
+  }
 }
 
 // ── 상단 새로고침 ───────────────────────────
