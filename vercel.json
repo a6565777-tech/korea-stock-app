@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "build": {
-    "env": { "TZ": "Asia/Seoul" }
-  },
-  "env": { "TZ": "Asia/Seoul" },
   "builds": [
     {
       "src": "api/index.py",
@@ -13,14 +9,35 @@
         "maxDuration": 60
       }
     },
-    { "src": "web/**", "use": "@vercel/static" }
+    {
+      "src": "web/**",
+      "use": "@vercel/static"
+    }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/index.py" },
-    { "src": "/docs", "dest": "/api/index.py" },
-    { "src": "/openapi.json", "dest": "/api/index.py" },
-    { "src": "/", "dest": "/web/index.html" },
-    { "src": "/(.+\\..+)", "dest": "/web/$1" },
-    { "src": "/(.*)", "dest": "/web/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/docs",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/openapi.json",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/",
+      "dest": "/web/index.html"
+    },
+    {
+      "src": "/(.+\\..+)",
+      "dest": "/web/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/web/index.html"
+    }
   ]
 }
