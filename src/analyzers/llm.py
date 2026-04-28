@@ -11,25 +11,24 @@ _API_KEY = os.getenv("GEMINI_API_KEY")
 _client = genai.Client(api_key=_API_KEY) if _API_KEY else None
 
 # [2026-04 업데이트] tier 별 폴백 체인.
-#   pro   : 정교한 분석 (브리핑) — Pro 우선, 실패 시 Flash로 graceful degrade
-#   flash : 자주 호출되는 가벼운 판단 (실시간 모니터링) — 비용 우선
-# Pro 는 2026-04-01 부터 유료 전용 (Google AI Studio 결제 연결 필요).
-# 결제 미연결 시 자동으로 Flash 폴백으로 떨어지게 설계.
+#   pro      : '전문가 분석' — Pro 모델 전용 (Flash 폴백 없음, 실패 시 명확히 사용 불가)
+#   standard : '일반 분석' — Flash 모델 (무료 또는 저비용)
+#   flash    : standard 의 alias (하위 호환)
+# Pro 는 2026-04-01 부터 유료 전용. 무료 키로는 항상 QuotaExhaustedError 가 떠서
+# 프론트엔드가 "전문가 분석을 지금 사용할 수 없습니다" 라고 사용자에게 깔끔히 안내 가능.
 _FALLBACK_PRO = [
-    "gemini-3.1-pro",            # 최신 플래그십 (유료)
-    "gemini-2.5-pro",            # 차상위 (유료)
-    "gemini-flash-latest",       # 무료 폴백
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.1-pro",            # 최신 플래그쉛
+    "gemini-2.5-pro",            # 차상위
 ]
-_FALLBACK_FLASH = [
+_FALLBACK_STANDARD = [
     "gemini-flash-latest",       # 자동 최신 alias (무료)
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
 ]
-_FALLBACK_MODELS = _FALLBACK_FLASH  # 하위 호환 (기존 호출자)
+_FALLBACK_FLASH = _FALLBACK_STANDARD  # 하위 호환 (이전 버전 alias)
+_FALLBACK_MODELS = _FALLBACK_STANDARD  # 하위 호환 (기존 호출자)
 
 
 class QuotaExhaustedError(RuntimeError):
@@ -40,14 +39,16 @@ class QuotaExhaustedError(RuntimeError):
 def ask(
     prompt: str,
     model: str | None = None,
-    tier: str = "flash",
+    tier: str = "standard",
     temperature: float = 0.3,
     max_retries: int = 2,
 ) -> str:
     """Gemini에게 질문하고 텍스트 응답 반환.
 
-    tier="pro"   → Pro 모델 우선 (브리핑·심층 분석용)
-    tier="flash" → Flash 우선 (실시간 폴링·간단 판단)
+    tier="pro"      → '전문가 분석'. Pro 모델 전용. 실패 시 QuotaExhaustedError
+                      (Flash 자동 폴백 안 함 — 프론트가 명시적으로 사용자에게 안내).
+    tier="standard" → '일반 분석'. Flash 체인 (무료/저비용).
+    tier="flash"    → standard 의 alias (하위 호환).
     model 인자가 명시되면 tier 무시하고 그 모델만 시도.
 
     폴백 체인을 순회하며 시도. 503/과부하는 지수 백오프 재시도, 그 외 에러는
@@ -60,8 +61,8 @@ def ask(
         models = [model]
     elif tier == "pro":
         models = _FALLBACK_PRO
-    else:
-        models = _FALLBACK_FLASH
+    else:  # standard / flash / 기타
+        models = _FALLBACK_STANDARD
 
     per_model_errors: dict[str, str] = {}
     all_quota = True
@@ -90,13 +91,19 @@ def ask(
 
     # 에러 요약 (모델별 짧게)
     summary = " | ".join(f"{m}: {err[:120]}" for m, err in per_model_errors.items())
+    # tier="pro" 는 결제 미연결(PERMISSION_DENIED)이든 쿼터 소진(429)이든
+    # 사용자 입장엔 똑같이 "전문가 분석 사용 불가". 일관된 예외로 통일.
+    if tier == "pro" and per_model_errors:
+        raise QuotaExhaustedError(
+            f"전문가 분석(Pro) 사용 불가. 결제 연결 또는 사용량 한도 확인 필요. 상세: {summary}"
+        )
     if all_quota and per_model_errors:
         raise QuotaExhaustedError(
-            "Gemini 무료 티어 쿼터 소진(모든 폴백 모델 429). "
+            "Gemini 쿼터 소진(모든 폴백 모델 429). "
             "Google AI Studio에서 결제 연결 또는 1~2시간 후 재시도. "
             f"상세: {summary}"
         )
-    raise RuntimeError(f"모든 Gemini 모델 실패: {summary}")
+    raise RuntimeError(f"모든 모델 실패: {summary}")
 
 
 if __name__ == "__main__":
