@@ -1,5 +1,9 @@
 {
   "version": 2,
+  "build": {
+    "env": { "TZ": "Asia/Seoul" }
+  },
+  "env": { "TZ": "Asia/Seoul" },
   "builds": [
     {
       "src": "api/index.py",
