@@ -21,5 +21,9 @@ def now() -> datetime:
 
 
 def now_iso() -> str:
-    """KST ISO 8601 문자열 (초 단위)."""
-    return now().isoformat(timespec="seconds")
+    """KST aware ISO 문자열 (+09:00 오프셋 포함).
+
+    프론트엔드 new Date() 가 브라우저 TZ에 관계없이 일관되게 해석하도록.
+    내부 비교용 naive 시각은 now() 가 계속 제공하므로 영향 없음.
+    """
+    return datetime.now(KST).isoformat(timespec="seconds")
