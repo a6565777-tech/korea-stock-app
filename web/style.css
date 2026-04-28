@@ -290,7 +290,7 @@ main { padding: 12px; }
 }
 .add-btn:active { background: var(--accent-hover); }
 
-.secondary-btn, .primary-btn {
+.secondary-btn, .primary-btn, .expert-btn {
   padding: 12px 18px;
   border-radius: 10px;
   font-size: 14px;
@@ -300,6 +300,22 @@ main { padding: 12px; }
 }
 .secondary-btn { background: var(--bg-card); color: var(--text); }
 .primary-btn { background: var(--accent); color: white; border-color: var(--accent); }
+.expert-btn {
+  background: linear-gradient(135deg, #5a4dff 0%, #8c5dff 100%);
+  color: white;
+  border-color: transparent;
+}
+.expert-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.primary-btn:disabled, .secondary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 분석 시작 버튼 (예측 탭 상단) */
+.predict-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.predict-actions > button { width: 100%; }
 
 /* 브리핑 탭 */
 .slot-picker {
