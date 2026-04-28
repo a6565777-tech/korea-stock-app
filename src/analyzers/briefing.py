@@ -690,7 +690,12 @@ def _inject_prev_close_numbers(text: str, stocks: list[dict]) -> str:
     return text
 
 
-def generate_briefing(cfg: dict, slot: str) -> str:
+def generate_briefing(cfg: dict, slot: str, mode: str = "standard") -> str:
+    """
+    mode="standard" → '일반 분석' (Flash 체인, 무료/저비용, 항상 가능)
+    mode="expert"   → '전문가 분석' (Pro 전용. 결제 미연결 또는 쿼터 소진 시
+                      QuotaExhaustedError 발생 → 호출자가 사용자에게 안내).
+    """
     meta = SLOTS[slot]
     now = timez.now()
     ref = slot_reference_time(slot, now)
@@ -803,8 +808,9 @@ def generate_briefing(cfg: dict, slot: str) -> str:
         + "\n# 컨텍스트\n"
         + context
     )
-    # 브리핑은 정교한 추론 필요 → Pro 티어 사용 (실패 시 Flash 폴백)
-    raw = ask(prompt, tier="pro", temperature=0.3)
+    # mode → tier 매핑 (expert = Pro 전용 / standard = Flash 체인)
+    tier = "pro" if mode == "expert" else "standard"
+    raw = ask(prompt, tier=tier, temperature=0.3)
 
     # ── 전일 종가 지어낸 것을 실제값으로 덮어씀 (day_trade 슬롯) ──
     if mode == "day_trade":
@@ -932,7 +938,7 @@ def _inject_position_numbers(text: str, positions: list[Position], watchlist: li
     return text
 
 
-def run(slot: str = "morning", send_push: bool = True, force: bool = False) -> str:
+def run(slot: str = "morning", send_push: bool = True, force: bool = False, mode: str = "standard") -> str:
     if slot not in SLOTS:
         raise ValueError(f"알 수 없는 슬롯: {slot}. 가능: {list(SLOTS.keys())}")
     if not force and not is_market_day():
@@ -941,11 +947,11 @@ def run(slot: str = "morning", send_push: bool = True, force: bool = False) -> s
 
     meta = SLOTS[slot]
     _log("=" * 50)
-    _log(f"{meta['title']} 시작")
+    _log(f"{meta['title']} 시작 (mode={mode})")
     try:
         cfg = load_config()
-        briefing = generate_briefing(cfg, slot)
-        _log("Gemini 분석 완료")
+        briefing = generate_briefing(cfg, slot, mode=mode)
+        _log("AI 분석 완료")
         print(briefing)
 
         # 앱에서 조회할 수 있게 캐시 저장
@@ -983,8 +989,10 @@ def run(slot: str = "morning", send_push: bool = True, force: bool = False) -> s
 
 
 if __name__ == "__main__":
-    # 사용법: python -m src.analyzers.briefing [morning|midday|afternoon|closing] [--force]
+    # 사용법: python -m src.analyzers.briefing [slot] [--force] [--expert]
+    # 기본 모드는 standard (일반 분석). --expert 플래그 시 전문가 분석(Pro).
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force = "--force" in sys.argv
+    mode = "expert" if "--expert" in sys.argv else "standard"
     slot = args[0] if args else "morning"
-    run(slot=slot, send_push=True, force=force)
+    run(slot=slot, send_push=True, force=force, mode=mode)
