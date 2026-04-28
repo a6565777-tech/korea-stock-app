@@ -395,49 +395,68 @@ async function loadBriefing(slot) {
 
 // 실시간 브리핑 재생성 로직 — 버튼 & PTR 공유.
 // confirmFirst=false 면 확인창 스킵 (PTR 경로에서 사용 — 당겼다는 것 자체가 의도표명).
-async function regenerateBriefing(confirmFirst = true) {
-  if (confirmFirst && !confirm("Gemini API를 호출해서 새 브리핑을 생성합니다. 계속?")) return;
-  const btn = $("run-predict-btn");
+// ── 분석 시작 (일반 / 전문가) ─────────────────
+const PREDICT_BUTTONS = {
+  standard: { id: "run-standard-btn", label: "📊 일반 분석", busy: "분석 중..." },
+  expert:   { id: "run-expert-btn",   label: "🎓 전문가 분석", busy: "전문가 분석 중..." },
+};
+
+async function runPredict(mode) {
+  const btnInfo = PREDICT_BUTTONS[mode];
+  const btn = $(btnInfo.id);
+  const otherBtn = $(PREDICT_BUTTONS[mode === "expert" ? "standard" : "expert"].id);
   const text = $("briefing-text");
   const meta = $("briefing-meta");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "생성 중... (20~40초)";
-  }
-  text.textContent = "⏳ Gemini 호출 중...\n(무료 티어는 최대 60초 소요)";
+  // 둘 다 비활성화 (중복 호출 방지)
+  if (btn) btn.disabled = true;
+  if (otherBtn) otherBtn.disabled = true;
+  if (btn) btn.textContent = btnInfo.busy;
+  text.textContent = mode === "expert"
+    ? "⏳ 전문가 분석 진행 중...\n(최대 60초 소요)"
+    : "⏳ 일반 분석 진행 중...\n(최대 30초 소요)";
   meta.textContent = "";
   try {
     const slot = state.slot;
-    const res = await api(`/api/predict/run?slot=${slot}`, { method: "POST" });
+    const res = await api(`/api/predict/run?slot=${slot}&mode=${mode}`, { method: "POST" });
     if (res && res.ok) {
-      toast("✅ 새 브리핑 생성 완료");
-      // 생성 직후 즉시 캐시 갱신 + 화면 갱신
-      const fresh = { slot, text: res.text, ts: new Date().toISOString() };
+      toast(mode === "expert" ? "🎓 전문가 분석 완료" : "📊 일반 분석 완료");
+      const fresh = { slot, text: res.text, ts: new Date().toISOString(), mode };
       cacheSet(`briefing_${slot}`, fresh);
       renderBriefingData(fresh, slot, false);
     }
   } catch (e) {
-    // 에러를 브리핑 영역에 크게 표시 (폰에서 toast만 뜨면 놓치기 쉬움)
     const body = e.body || {};
-    if (e.status === 429 || body.reason === "quota_exhausted") {
+    // 전문가 분석 실패 (쿼터/결제) → 일반 분석으로 시도하라고 안내
+    if (e.status === 429 && body.reason === "expert_unavailable") {
       text.textContent = body.user_message ||
-        "⚠️ Gemini 무료 쿼터 소진. 1~2시간 후 재시도하거나 결제 연결 필요.";
-      meta.textContent = "quota_exhausted · " + new Date().toLocaleString("ko-KR");
+        "🎓 전문가 분석을 지금 사용할 수 없어요.\n\n잠시 후 다시 시도하거나, 일반 분석을 사용해 주세요.";
+      meta.textContent = "전문가 사용 불가 · " + new Date().toLocaleString("ko-KR");
+    } else if (e.status === 429) {
+      text.textContent = body.user_message ||
+        "분석 사용량이 일시적으로 한도에 도달했어요.\n1~2시간 후 다시 시도해 주세요.";
+      meta.textContent = "한도 도달 · " + new Date().toLocaleString("ko-KR");
     } else {
-      text.textContent = "❌ 생성 실패\n\n" +
-        (body.user_message || e.message || "알 수 없는 오류") +
-        (body.type ? `\n\n[${body.type}]` : "");
-      meta.textContent = "error · " + new Date().toLocaleString("ko-KR");
+      text.textContent = "❌ 분석 실패\n\n" +
+        (body.user_message || e.message || "알 수 없는 오류");
+      meta.textContent = "오류 · " + new Date().toLocaleString("ko-KR");
     }
   } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
-    }
+    if (btn) btn.disabled = false;
+    if (otherBtn) otherBtn.disabled = false;
+    if (btn) btn.textContent = btnInfo.label;
   }
 }
 
-$("run-predict-btn").addEventListener("click", () => regenerateBriefing(true));
+// 기존 호출자(refreshCurrentTab 등)가 쓸 수 있게 alias 유지 — standard 모드로 라우팅
+async function regenerateBriefing() {
+  return runPredict("standard");
+}
+
+$("run-standard-btn").addEventListener("click", () => runPredict("standard"));
+$("run-expert-btn").addEventListener("click", () => {
+  if (!confirm("🎓 전문가 분석은 사용량 한도가 있습니다. 진행할까요?")) return;
+  runPredict("expert");
+});
 
 // ── 관심종목 ───────────────────────────────
 function renderWatchlistData(data) {
