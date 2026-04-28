@@ -50,10 +50,14 @@
       <button class="slot-btn" data-slot="afternoon">⏰ 오후</button>
       <button class="slot-btn" data-slot="closing">🔔 마감</button>
     </div>
+    <!-- 분석 시작 버튼 (상단 배치 — 긴 본문 아래로 스크롤할 필요 없도록) -->
+    <div class="predict-actions">
+      <button id="run-standard-btn" class="primary-btn">📊 일반 분석</button>
+      <button id="run-expert-btn" class="expert-btn">🎓 전문가 분석</button>
+    </div>
     <div id="briefing-banner" class="briefing-banner hidden"></div>
     <div id="briefing-meta" class="meta"></div>
     <pre id="briefing-text" class="briefing-text"></pre>
-    <button id="run-predict-btn" class="secondary-btn">🤖 지금 새 브리핑 생성 (Gemini 호출)</button>
   </section>
 
   <!-- 적중률 탭 -->
