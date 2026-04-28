@@ -803,7 +803,8 @@ def generate_briefing(cfg: dict, slot: str) -> str:
         + "\n# 컨텍스트\n"
         + context
     )
-    raw = ask(prompt, temperature=0.3)
+    # 브리핑은 정교한 추론 필요 → Pro 티어 사용 (실패 시 Flash 폴백)
+    raw = ask(prompt, tier="pro", temperature=0.3)
 
     # ── 전일 종가 지어낸 것을 실제값으로 덮어씀 (day_trade 슬롯) ──
     if mode == "day_trade":
