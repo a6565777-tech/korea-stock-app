@@ -5,7 +5,7 @@ POST /api/predict/run?slot=&mode=      강제 새 브리핑 생성
 
 mode:
   standard (기본) → '일반 분석' — Flash 체인, 항상 가능
-  expert          → '전문가 분석' — Pro 전용, 쿼터 소진 시 429 반환
+  expert          → '정밀 분석' — Pro 전용, 쿼터 소진 시 429 반환
 """
 import traceback
 from fastapi import APIRouter, Query
@@ -62,7 +62,7 @@ def run_prediction(
         # 사용자에게 노출되는 메시지에는 'Gemini' 등 내부 모델명 노출하지 않음
         if mode == "expert":
             user_msg = (
-                "🎓 전문가 분석을 지금 사용할 수 없어요. 잠시 후 다시 시도하거나, 일반 분석을 사용해 주세요. (전문가 분석은 일별 사용량 한도가 있습니다.)"
+                "🔍 정밀 분석을 지금 사용할 수 없어요. 잠시 후 다시 시도하거나, 일반 분석을 사용해 주세요. (정밀 분석은 일별 사용량 한도가 있습니다.)"
             )
             reason = "expert_unavailable"
         else:

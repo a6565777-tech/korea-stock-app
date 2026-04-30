@@ -271,15 +271,9 @@ const SLOT_INFO = {
 };
 
 function updateBriefingControls(slot) {
-  // 실시간 탭에서만 수동 생성 버튼 노출. 예약 슬롯은 조회 전용.
-  const btn = $("run-predict-btn");
-  if (!btn) return;
-  if (slot === "realtime") {
-    btn.style.display = "";
-    btn.textContent = "🤖 지금 새 브리핑 생성 (Gemini 호출)";
-  } else {
-    btn.style.display = "none";
-  }
+  // [구버전 호환] run-predict-btn 단일 버튼이 두 버튼(standard/expert)으로 교체됨.
+  // 새 버튼 두 개는 모든 슬롯에서 항상 노출 (예약 슬롯도 수동 재생성 가능).
+  // 함수 자체는 호출 사이트 호환을 위해 유지, 본체는 no-op.
 }
 
 function activateSlot(s) {
@@ -346,12 +340,19 @@ function renderBriefingData(data, slot, fromCache = false) {
     const tsAbs = data.ts ? new Date(data.ts).toLocaleString("ko-KR") : "";
     meta.textContent = `${data.slot || slot} · ${ageStr ? ageStr + " · " : ""}${tsAbs}${fromCache ? " (캐시)" : ""}`;
 
-    // 실시간 탭은 오래된 값이면 경고 배너
-    if (slot === "realtime" && ageMin != null && ageMin >= 30) {
+    // 실시간 탭은 오래된 값이면 경고 배너 (10분 초과 시)
+    if (slot === "realtime" && ageMin != null && ageMin >= 10) {
       banner.classList.remove("hidden");
       banner.innerHTML =
         `⚠️ 실시간 브리핑이 <b>${ageStr}</b> 생성된 내용입니다. ` +
-        `시세·뉴스가 바뀌었을 수 있어요. 아래 <b>🤖 지금 새 브리핑 생성</b>으로 최신화하세요.`;
+        `시세·뉴스가 바뀌었을 수 있어요. 위의 <b>📊 일반 분석</b> 또는 <b>🔍 정밀 분석</b> 버튼을 눌러 최신화하세요.`;
+    }
+    // 예약 슬롯도 12시간 이상 오래되면 안내 (자정/아침 슬롯이 cron 실패한 경우)
+    else if (slot !== "realtime" && ageMin != null && ageMin >= 720) {
+      banner.classList.remove("hidden");
+      banner.innerHTML =
+        `⚠️ 이 브리핑은 <b>${ageStr}</b> 생성됐습니다. ` +
+        `최신 시장 상황을 반영하려면 위의 <b>📊 일반 분석</b>으로 재생성하세요.`;
     }
   }
 }
@@ -395,10 +396,11 @@ async function loadBriefing(slot) {
 
 // 실시간 브리핑 재생성 로직 — 버튼 & PTR 공유.
 // confirmFirst=false 면 확인창 스킵 (PTR 경로에서 사용 — 당겼다는 것 자체가 의도표명).
-// ── 분석 시작 (일반 / 전문가) ─────────────────
+// ── 분석 시작 (일반 / 정밀) ─────────────────
+// 내부 mode 키는 "expert" 유지 (API 호환). UI 라벨만 "정밀 분석"으로 표시.
 const PREDICT_BUTTONS = {
   standard: { id: "run-standard-btn", label: "📊 일반 분석", busy: "분석 중..." },
-  expert:   { id: "run-expert-btn",   label: "🎓 전문가 분석", busy: "전문가 분석 중..." },
+  expert:   { id: "run-expert-btn",   label: "🔍 정밀 분석", busy: "정밀 분석 중..." },
 };
 
 async function runPredict(mode) {
@@ -412,25 +414,25 @@ async function runPredict(mode) {
   if (otherBtn) otherBtn.disabled = true;
   if (btn) btn.textContent = btnInfo.busy;
   text.textContent = mode === "expert"
-    ? "⏳ 전문가 분석 진행 중...\n(최대 60초 소요)"
+    ? "⏳ 정밀 분석 진행 중...\n(최대 60초 소요)"
     : "⏳ 일반 분석 진행 중...\n(최대 30초 소요)";
   meta.textContent = "";
   try {
     const slot = state.slot;
     const res = await api(`/api/predict/run?slot=${slot}&mode=${mode}`, { method: "POST" });
     if (res && res.ok) {
-      toast(mode === "expert" ? "🎓 전문가 분석 완료" : "📊 일반 분석 완료");
+      toast(mode === "expert" ? "🔍 정밀 분석 완료" : "📊 일반 분석 완료");
       const fresh = { slot, text: res.text, ts: new Date().toISOString(), mode };
       cacheSet(`briefing_${slot}`, fresh);
       renderBriefingData(fresh, slot, false);
     }
   } catch (e) {
     const body = e.body || {};
-    // 전문가 분석 실패 (쿼터/결제) → 일반 분석으로 시도하라고 안내
+    // 정밀 분석 실패 (쿼터/결제) → 일반 분석으로 시도하라고 안내
     if (e.status === 429 && body.reason === "expert_unavailable") {
       text.textContent = body.user_message ||
-        "🎓 전문가 분석을 지금 사용할 수 없어요.\n\n잠시 후 다시 시도하거나, 일반 분석을 사용해 주세요.";
-      meta.textContent = "전문가 사용 불가 · " + new Date().toLocaleString("ko-KR");
+        "🔍 정밀 분석을 지금 사용할 수 없어요.\n\n잠시 후 다시 시도하거나, 일반 분석을 사용해 주세요.";
+      meta.textContent = "정밀 분석 사용 불가 · " + new Date().toLocaleString("ko-KR");
     } else if (e.status === 429) {
       text.textContent = body.user_message ||
         "분석 사용량이 일시적으로 한도에 도달했어요.\n1~2시간 후 다시 시도해 주세요.";
@@ -454,7 +456,7 @@ async function regenerateBriefing() {
 
 $("run-standard-btn").addEventListener("click", () => runPredict("standard"));
 $("run-expert-btn").addEventListener("click", () => {
-  if (!confirm("🎓 전문가 분석은 사용량 한도가 있습니다. 진행할까요?")) return;
+  if (!confirm("🔍 정밀 분석은 사용량 한도가 있습니다. 진행할까요?")) return;
   runPredict("expert");
 });
 
