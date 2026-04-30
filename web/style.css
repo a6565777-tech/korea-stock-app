@@ -682,3 +682,39 @@ details summary {
   line-height: 1.5;
   word-break: keep-all;
 }
+
+/* 광고 슬롯 — AdSense 비승인 상태에서는 plchldr, 승인 후엔 자동으로 광고가 채움 */
+.ad-slot {
+  margin: 8px 12px;
+  text-align: center;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ad-slot-top { margin-top: 8px; margin-bottom: 12px; }
+.ad-slot-bottom { margin-top: 16px; margin-bottom: 8px; }
+.ad-slot ins.adsbygoogle { display: block; }
+
+/* 광고 미승인/미연결 시: 점선 박스 + "광고 영역" 라벨 */
+.ad-slot[data-ad-status="placeholder"] {
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 16px 12px;
+  position: relative;
+  letter-spacing: 0.05em;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-slot[data-ad-status="placeholder"] ins.adsbygoogle { display: none; }
+.ad-slot[data-ad-status="placeholder"]::before {
+  content: "광고 영역";
+}
+.ad-slot[data-ad-status="placeholder"].ad-slot-top::before {
+  content: "광고 영역 (상단)";
+}
+.ad-slot[data-ad-status="placeholder"].ad-slot-bottom::before {
+  content: "광고 영역 (하단)";
+}
