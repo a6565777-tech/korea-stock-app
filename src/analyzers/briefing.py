@@ -965,8 +965,10 @@ def run(slot: str = "morning", send_push: bool = True, force: bool = False, mode
             f.write(f"\n--- {meta['title']} 본문 ---\n{briefing}\n")
 
         if send_push:
+            # 자본시장법 면책 — 모든 발송 본문 끝에 자동 부착
+            push_body = briefing + "\n\n━━━━━━━━━━\n※ 시장 정보 참고용. 투자 결정과 손익은 본인 책임."
             ok = send(
-                message=briefing,
+                message=push_body,
                 title=f"{meta['title']} {timez.now().strftime('%m/%d %H:%M')}",
                 priority=4,
                 tags=["chart_with_upwards_trend"],

@@ -207,7 +207,8 @@ def _send_watch_alert(stock: dict, snap: PriceSnapshot, analysis: dict, trigger:
 📰 {analysis['reason']}
 신뢰도: {analysis['confidence']}
 ━━━━━━━━━━
-⚠️ 데이터 15~20분 지연. 판단은 본인."""
+⚠️ 데이터 15~20분 지연.
+※ 시장 정보 참고용. 투자 결정과 손익은 본인 책임."""
     return send(
         message=msg, title=f"⚡ {stock['name']} 실시간",
         priority=priority, tags=[tag], click_url=toss_link,
@@ -241,7 +242,8 @@ def _send_position_alert(pos: Position, snap: PriceSnapshot, analysis: dict,
 📰 {analysis['reason']}
 신뢰도: {analysis['confidence']}
 ━━━━━━━━━━
-⚠️ 데이터 15~20분 지연. 판단은 본인."""
+⚠️ 데이터 15~20분 지연.
+※ 시장 정보 참고용. 투자 결정과 손익은 본인 책임."""
     return send(
         message=msg, title=f"{header_prefix} - {pos.name}",
         priority=priority, tags=[tag], click_url=toss_link,

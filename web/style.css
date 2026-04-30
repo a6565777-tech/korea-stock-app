@@ -623,3 +623,62 @@ details summary {
   padding: 40px 20px;
   font-size: 14px;
 }
+
+/* 면책 푸터 */
+.disclaimer-footer {
+  margin: 24px 12px env(safe-area-inset-bottom, 16px);
+  padding: 14px 14px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.disclaimer-footer p {
+  margin: 0 0 8px;
+}
+.disclaimer-footer p:last-child { margin-bottom: 0; }
+.disclaimer-short {
+  word-break: keep-all;
+}
+.disclaimer-details {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.disclaimer-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 11px;
+  padding: 2px 0;
+  outline: none;
+  list-style: none;
+}
+.disclaimer-details summary::-webkit-details-marker { display: none; }
+.disclaimer-details summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s;
+}
+.disclaimer-details[open] summary::before {
+  content: "▾ ";
+}
+.disclaimer-details p {
+  margin-top: 8px;
+  font-size: 11px;
+  word-break: keep-all;
+}
+
+/* 적중률 면책 */
+.acc-disclaimer {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--orange);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  word-break: keep-all;
+}
