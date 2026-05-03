@@ -88,12 +88,38 @@ def get_snapshot(code: str, market: str = "KS", name: str | None = None) -> Pric
 
         last_row = hist.iloc[-1]
         prev_row = hist.iloc[-2]
-        last = float(last_row["Close"])
-        prev_close = float(prev_row["Close"])
-        change_pct = (last - prev_close) / prev_close * 100 if prev_close else 0.0
+        last_close_val = float(last_row["Close"])
+        prior_close_val = float(prev_row["Close"])
+        change_pct = (last_close_val - prior_close_val) / prior_close_val * 100 if prior_close_val else 0.0
 
         trade_date = _row_date(hist.index[-1])
         prev_trade_date = _row_date(hist.index[-2])
+
+        # ── prev_close 의미 정정 (BUG FIX 2026-05) ──────────────────
+        # 'prev_close' = '다음 시초가가 갭할 기준점' = 사용자가 토스/네이버에서 보는 '종가'.
+        #
+        #   장 중 (intraday)         : iloc[-1] 은 오늘의 부분 봉
+        #                              → prev_close = iloc[-2] (어제 settled close)
+        #   장 외 (마감 후/주말/휴일) : iloc[-1] 이 가장 최근 settled close
+        #                              → prev_close = iloc[-1]  ← 토스가 보여주는 '종가'
+        #
+        # 기존 버그: 항상 iloc[-2] 사용 → 장 외에 '이틀 전 종가' 를 노출.
+        # 사용자 보고: SK이노 ₩149,800 표시 vs 실제 ₩146,200 (₩3,600 어긋남).
+        _now_kst = timez.now()
+        _is_kr = _is_korean(symbol)
+        _is_weekday = _now_kst.weekday() < 5
+        _cur_t = _now_kst.time()
+        _is_market_hours = (
+            _cur_t >= datetime.min.time().replace(hour=9)
+            and _cur_t < datetime.min.time().replace(hour=15, minute=30)
+        )
+        _is_intraday = (
+            _is_kr and _is_weekday and _is_market_hours
+            and trade_date == _now_kst.date()
+        )
+
+        last = last_close_val
+        prev_close = prior_close_val if _is_intraday else last_close_val
 
         open_ = float(last_row["Open"])
         high = float(last_row["High"])
