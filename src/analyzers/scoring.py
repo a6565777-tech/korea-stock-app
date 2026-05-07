@@ -185,7 +185,11 @@ def score_unresolved() -> dict:
 
 
 def format_accuracy_for_prompt(days: int = 30) -> str:
-    """다음 브리핑 프롬프트에 주입할 적중률 요약."""
+    """다음 브리핑 프롬프트에 주입할 적중률 요약.
+
+    핵심 메트릭은 '매수 시그널(🟢+🟡) 적중률' — '전체 평균'은
+    회피 신호 포함이라 misleading. 자가교정에 도움되는 형태로 제공.
+    """
     stats = predictions_store.rolling_accuracy(days)
     if stats["scored"] == 0:
         return (
@@ -193,19 +197,59 @@ def format_accuracy_for_prompt(days: int = 30) -> str:
             "이번 브리핑은 보수적으로 판단할 것."
         )
     by = stats["by_signal"]
+    g = by.get("🟢", {"count": 0, "target_hit": 0, "stop_hit": 0})
+    y = by.get("🟡", {"count": 0, "target_hit": 0, "stop_hit": 0})
+    o = by.get("🟠", {"count": 0, "stop_hit": 0})
+    r = by.get("🔴", {"count": 0, "stop_hit": 0})
+
+    buy_n = g["count"] + y["count"]
+    buy_hit = g["target_hit"] + y["target_hit"]
+    buy_stop = g["stop_hit"] + y["stop_hit"]
+    buy_hit_rate = round(buy_hit / buy_n * 100, 1) if buy_n else 0.0
+    buy_stop_rate = round(buy_stop / buy_n * 100, 1) if buy_n else 0.0
+
+    avoid_n = o["count"] + r["count"]
+    avoid_stop = o["stop_hit"] + r["stop_hit"]
+    avoid_rate = round(avoid_stop / avoid_n * 100, 1) if avoid_n else 0.0
+
     lines = [
-        f"📊 최근 {days}일 실제 적중률 (채점 {stats['scored']}건 / 전체 {stats['total']}건)",
-        f"   전체 목표가 도달률: {stats['overall_target_hit_rate']}%",
+        f"📊 최근 {days}일 실제 성과 (채점 {stats['scored']}건 / 전체 {stats['total']}건)",
+        f"   ⭐ 매수 시그널(🟢+🟡) {buy_n}건 → 목표 도달 {buy_hit_rate}% · 손절 도달 {buy_stop_rate}%",
+        f"   🛡 회피 시그널(🟠+🔴) {avoid_n}건 → 손절 도달 {avoid_rate}%",
     ]
+
+    # 신호별 세부 (참고)
+    lines.append("   [신호별]")
     for emoji in ("🟢", "🟡", "⚪", "🟠", "🔴"):
         b = by.get(emoji)
         if not b:
             continue
         lines.append(
-            f"   {emoji} {b['count']}건 → 목표 {b['hit_rate']}% / 손절 {b['stop_rate']}%"
+            f"     {emoji} {b['count']}건 → 목표 {b['hit_rate']}% / 손절 {b['stop_rate']}%"
         )
-    lines.append(
-        "   ⚠️ 위 실적중률을 참고해 상승확률 보정. "
-        "🟢 가 자주 틀렸으면 이번엔 더 보수적으로."
-    )
+
+    # 자가교정 actionable 힌트
+    hints: list[str] = []
+    g_hit = g.get("hit_rate", 0)
+    y_hit = y.get("hit_rate", 0)
+    if g["count"] >= 5 and y["count"] >= 5 and y_hit > g_hit + 5:
+        hints.append(
+            f"🟡({y_hit}%) 적중률이 🟢({g_hit}%)보다 높음 → 이번엔 🟢 후보 일부를 🟡로 다운그레이드 검토."
+        )
+    if buy_stop_rate > 35:
+        hints.append(
+            f"매수 후 손절률 {buy_stop_rate}% 너무 높음 → 🟢/🟡 발급을 더 빡빡하게. "
+            "수급 약하거나 갭 과열이면 ⚪로."
+        )
+    if avoid_rate < 55 and avoid_n >= 10:
+        hints.append(
+            f"🟠 회피 정확도 {avoid_rate}% (동전던지기 수준) → 🟠 발급 줄이고 ⚪로 분류 권장."
+        )
+    if hints:
+        lines.append("   ⚠️ 자가교정 힌트:")
+        for h in hints:
+            lines.append(f"     • {h}")
+    else:
+        lines.append("   ⚠️ 위 실적중률을 참고해 상승확률 보정. 보수적으로 판단할 것.")
+
     return "\n".join(lines)

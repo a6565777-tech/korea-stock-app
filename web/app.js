@@ -607,44 +607,97 @@ const SIGNAL_LABELS = {
   "🔴": "매도 고려",
 };
 
-function renderAccuracy(summary, recent) {
+function renderAccuracy(summary, recent, currentDays) {
   const sumEl = $("accuracy-summary");
   const listEl = $("accuracy-list");
+  currentDays = currentDays || 30;
   // 요약
   if (!summary || summary.scored === 0) {
     sumEl.innerHTML = `
       <div class="acc-summary-card">
+        <div class="acc-period-toggle">
+          ${[30, 60, 90].map((d) => `<button data-days="${d}" class="${d === currentDays ? 'active' : ''}">${d}일</button>`).join("")}
+        </div>
         <div class="acc-overall">—</div>
-        <div class="dim" style="color:var(--text-dim);font-size:13px">
+        <div class="dim" style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px 12px">
           아직 채점된 예측이 없습니다. 브리핑이 생성되고 다음 영업일이 지나면 자동으로 채점됩니다.
         </div>
       </div>
     `;
   } else {
-    const rows = ["🟢", "🟡", "⚪", "🟠", "🔴"]
+    const by = summary.by_signal || {};
+    const g = by["🟢"] || { count: 0, target_hit: 0, stop_hit: 0 };
+    const y = by["🟡"] || { count: 0, target_hit: 0, stop_hit: 0 };
+    const o = by["🟠"] || { count: 0, stop_hit: 0 };
+    const r = by["🔴"] || { count: 0, stop_hit: 0 };
+
+    const buyN = g.count + y.count;
+    const buyHit = g.target_hit + y.target_hit;
+    const buyStop = g.stop_hit + y.stop_hit;
+    const buyHitRate = buyN ? Math.round((buyHit / buyN) * 100) : 0;
+    const buyStopRate = buyN ? Math.round((buyStop / buyN) * 100) : 0;
+
+    const avoidN = o.count + r.count;
+    const avoidStop = o.stop_hit + r.stop_hit;
+    const avoidRate = avoidN ? Math.round((avoidStop / avoidN) * 100) : 0;
+
+    // 적중률 색상: 60%↑ 좋음 / 50~60% 보통 / 50%↓ 약함
+    const buyColorClass =
+      buyHitRate >= 60 ? "pnl-positive" : buyHitRate >= 50 ? "pnl-neutral" : "pnl-negative";
+
+    const detailRows = ["🟢", "🟡", "⚪", "🟠", "🔴"]
       .map((e) => {
-        const b = summary.by_signal[e];
+        const b = by[e];
         if (!b) return "";
         return `
           <div class="acc-signal-row">
             <span><span class="emoji">${e}</span>${SIGNAL_LABELS[e]} (${b.count}건)</span>
             <span>
-              <span class="num pnl-positive">목표 ${b.hit_rate}%</span>
+              <span class="num">목표 ${b.hit_rate}%</span>
               <span class="dim"> · </span>
-              <span class="num pnl-negative">손절 ${b.stop_rate}%</span>
+              <span class="num">손절 ${b.stop_rate}%</span>
             </span>
           </div>
         `;
       })
       .join("");
+
     sumEl.innerHTML = `
       <div class="acc-summary-card">
-        <div class="acc-overall">
-          ${summary.overall_target_hit_rate}% <span class="dim">(전체 목표가 도달률, 최근 ${summary.period_days}일 · 채점 ${summary.scored}건)</span>
+        <div class="acc-period-toggle">
+          ${[30, 60, 90].map((d) => `<button data-days="${d}" class="${d === currentDays ? 'active' : ''}">${d}일</button>`).join("")}
         </div>
-        ${rows}
+        <div class="acc-main">
+          <div class="acc-main-num ${buyColorClass}">${buyHitRate}%</div>
+          <div class="acc-main-label">매수 시그널 적중률</div>
+          <div class="acc-main-sub dim">🟢+🟡 ${buyN}건 중 ${buyHit}건 목표 도달 · 채점 ${summary.scored}건</div>
+        </div>
+        <div class="acc-secondary">
+          <div class="acc-sec-item">
+            <div class="acc-sec-num">${avoidRate}%</div>
+            <div class="acc-sec-label">🛡 회피 정확도</div>
+            <div class="acc-sec-sub dim">🟠+🔴 ${avoidN}건</div>
+          </div>
+          <div class="acc-sec-item">
+            <div class="acc-sec-num pnl-negative">${buyStopRate}%</div>
+            <div class="acc-sec-label">⚠ 매수 후 손절률</div>
+            <div class="acc-sec-sub dim">${buyStop}건 손절</div>
+          </div>
+        </div>
+        <details class="acc-detail">
+          <summary>신호별 세부</summary>
+          <div class="acc-detail-rows">${detailRows}</div>
+          <div class="acc-overall-tiny dim">
+            ※ '전체 평균' = ${summary.overall_target_hit_rate}% (회피 신호 포함, 참고용. 핵심은 위 매수 시그널 적중률)
+          </div>
+        </details>
       </div>
     `;
+
+    // 기간 토글 이벤트 바인딩
+    sumEl.querySelectorAll(".acc-period-toggle button").forEach((btn) => {
+      btn.addEventListener("click", () => loadAccuracy(parseInt(btn.dataset.days, 10)));
+    });
   }
 
   // 최근 예측 상세
@@ -686,24 +739,25 @@ function renderAccuracy(summary, recent) {
     .join("");
 }
 
-async function loadAccuracy() {
+async function loadAccuracy(days) {
+  days = days || 30;
   const sumEl = $("accuracy-summary");
   const listEl = $("accuracy-list");
-  // 캐시 즉시 표시
+  // 캐시 즉시 표시 (요청한 days와 일치할 때만)
   const cached = cacheGet("accuracy");
-  if (cached && cached.data) {
-    renderAccuracy(cached.data.summary, cached.data.recent);
+  if (cached && cached.data && cached.data.days === days) {
+    renderAccuracy(cached.data.summary, cached.data.recent, days);
   } else {
     sumEl.innerHTML = '<div class="loading">로딩중...</div>';
     listEl.innerHTML = "";
   }
   try {
     const [summary, recent] = await Promise.all([
-      api("/api/accuracy?days=30"),
-      api("/api/accuracy/recent?days=30"),
+      api(`/api/accuracy?days=${days}`),
+      api(`/api/accuracy/recent?days=${days}`),
     ]);
-    cacheSet("accuracy", { summary, recent });
-    renderAccuracy(summary, recent);
+    cacheSet("accuracy", { summary, recent, days });
+    renderAccuracy(summary, recent, days);
   } catch (e) {
     if (!cached) {
       sumEl.innerHTML = '<div class="empty">서버 연결 실패.</div>';
